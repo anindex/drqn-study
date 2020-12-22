@@ -8,7 +8,7 @@ from collections import deque
 import matplotlib.pyplot as plt
 from gym.spaces.box import Box
 
-from replay.base import Experience
+from src.replay.base import Experience
 
 
 class Env(object):

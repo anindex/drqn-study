@@ -13,7 +13,6 @@ model:
 
 memory:
   size: 10000
-  max_episode_length: 1000
 
 env_type: 'gym'
 model_type: 'dqn_fc'

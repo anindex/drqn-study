@@ -11,7 +11,8 @@ args = parser.parse_args()
 
 ROOT_DIR = dirname(abspath(__file__))
 config_file = join(ROOT_DIR, 'configs', args.config_file)
-params = yaml.load(config_file)
+with open(config_file, 'r') as f:
+    params = yaml.full_load(f)
 params['model_file'] = join(ROOT_DIR, 'saves', params['model_file'])
 params['env']['root_dir'] = ROOT_DIR
 

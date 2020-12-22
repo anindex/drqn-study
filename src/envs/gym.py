@@ -2,10 +2,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from os.path import join
-import nump as np
+import numpy as np
 import gym
 
-from base import Env
+from src.envs.base import Env
 
 
 class GymEnv(Env):  # low dimensional observations

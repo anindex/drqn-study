@@ -6,7 +6,7 @@ import random
 import time
 import torch
 
-from base import Agent, adjust_learning_rate
+from src.agents.base import Agent, adjust_learning_rate
 
 
 class DQNAgent(Agent):
@@ -14,7 +14,7 @@ class DQNAgent(Agent):
         super(DQNAgent, self).__init__(env_prototype, model_prototype, memory_prototype, **kwargs)
         self.logger.info('<===================================> DQNAgent')
         # env
-        self.env = self.env_prototype(self.env_params)
+        self.env = self.env_prototype(**self.env_params)
         self.state_shape = self.env.state_shape
         self.action_dim = self.env.action_dim
         # cuda
@@ -24,16 +24,16 @@ class DQNAgent(Agent):
         self.model_params['state_shape'] = self.state_shape
         self.model_params['action_dim'] = self.action_dim
         self.model_params['seq_len'] = self.env_params['seq_len']
-        self.model = self.model_prototype(self.model_params)
+        self.model = self.model_prototype(**self.model_params)
         self._load_model(self.model_file)   # load pretrained model if provided
         # target_model
-        self.target_model = self.model_prototype(self.model_params)
+        self.target_model = self.model_prototype(**self.model_params)
         self._update_target_model_hard()
         # memory
         if memory_prototype is not None:
-            self.memory = self.memory_prototype(self.memory_params)
+            self.memory = self.memory_prototype(**self.memory_params)
         # experience & states
-        self._reset_states()
+        self._reset_experiences()
 
     def _reset_training_loggings(self):
         self._reset_testing_loggings()

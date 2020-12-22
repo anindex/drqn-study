@@ -2,14 +2,14 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from envs.gym import GymEnv
-from envs.atari import AtariEnv
-from models.dqn_fc import DQNFCModel
-from models.dqn_cnn import DQNCNNModel
-from models.dqn_lstm import DQNLSTMModel
-from replay.episodic import EpisodicMemory
-from replay.random import RandomMemory
-from agents.dqn import DQNAgent
+from src.envs.gym import GymEnv
+from src.envs.atari import AtariEnv
+from src.models.dqn_fc import DQNFCModel
+from src.models.dqn_cnn import DQNCNNModel
+from src.models.dqn_lstm import DQNLSTMModel
+from src.replay.episodic import EpisodicMemory
+from src.replay.random import RandomMemory
+from src.agents.dqn import DQNAgent
 
 EnvDict = {"gym":         GymEnv,
            "atari":       AtariEnv}

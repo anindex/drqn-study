@@ -4,7 +4,7 @@ from __future__ import print_function
 import random
 from collections import deque
 
-from base import Memory, Experience, sample_batch_indexes
+from src.replay.base import Memory, Experience, sample_batch_indexes
 
 
 class EpisodicMemory(Memory):
