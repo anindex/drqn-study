@@ -5,6 +5,7 @@ import numpy as np
 import random
 import time
 import torch
+from collections import deque
 
 from src.agents.base import Agent, adjust_learning_rate
 
@@ -24,16 +25,20 @@ class DQNAgent(Agent):
         self.model_params['state_shape'] = self.state_shape
         self.model_params['action_dim'] = self.action_dim
         self.model_params['seq_len'] = self.env_params['seq_len']
+
+    def _init_model(self, training=False):
         self.model = self.model_prototype(name='Current Model', **self.model_params).to(self.device)
-        self._load_model(self.model_file)   # load pretrained model if provided
-        # target_model
-        self.target_model = self.model_prototype(name='Target Model', **self.model_params).to(self.device)
-        self._update_target_model_hard()
-        # memory
-        if memory_prototype is not None:
-            self.memory = self.memory_prototype(**self.memory_params)
-        # experience & states
-        self._reset_experiences()
+        if not self.retrain:
+            self._load_model()   # load pretrained model if provided
+        if training:
+            # target_model
+            self.target_model = self.model_prototype(name='Target Model', **self.model_params).to(self.device)
+            self._update_target_model_hard()
+            # memory
+            if self.memory_prototype is not None:
+                self.memory = self.memory_prototype(**self.memory_params)
+            # experience & states
+            self._reset_experiences()
 
     def _reset_training_loggings(self):
         self._reset_testing_loggings()
@@ -49,12 +54,11 @@ class DQNAgent(Agent):
         self.reward_avg_log = []
         self.reward_std_log = []
         self.nepisodes_log = []
-        self.nepisodes_solved_log = []
-        self.repisodes_solved_log = []
 
     def _reset_experiences(self):
         self.env.reset()
-        self.memory.reset()
+        if self.memory is not None:
+            self.memory.reset()
 
     # Hard update every `target_model_update` steps.
     def _update_target_model_hard(self):
@@ -65,8 +69,8 @@ class DQNAgent(Agent):
         for i, (key, target_weights) in enumerate(self.target_model.state_dict().iteritems()):
             target_weights += self.target_model_update * self.model.state_dict()[key]
 
-    def _visualize(self):
-        if self.visualize:
+    def _visualize(self, visualize=True):
+        if visualize:
             self.env.visual()
             self.env.render()
 
@@ -134,6 +138,7 @@ class DQNAgent(Agent):
             self._update_target_model_soft()    # Soft update with `(1 - target_model_update) * old + target_model_update * new`.
 
     def fit_model(self):
+        self._init_model(training=True)
         self.eps = self.eps_start
         self.optimizer = self.optimizer_class(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         self.lr_adjusted = self.lr
@@ -142,34 +147,58 @@ class DQNAgent(Agent):
         self.start_time = time.time()
         self.step = 0
         nepisodes = 0
-        nepisodes_solved = 0
         total_reward = 0.
+        window_rewards = deque(maxlen=self.run_avg_nepisodes)
         new_eps = True
         while self.step < self.steps:
             if new_eps:    # start of a new episode
                 episode_steps = 0
                 episode_reward = 0.
                 self.experience = self.env.reset()
-                self._visualize()
+                self._visualize(visualize=self.train_visualize)
                 new_eps = False  # reset flag
             action = self._forward(self.experience.s1)
             self.experience = self.env.step(action)
-            self._visualize()
+            self._visualize(visualize=self.train_visualize)
             new_eps = bool(self.experience.t1)
             self._backward(self.experience)
             episode_steps += 1
             episode_reward += self.experience.r
             self.step += 1
             if new_eps:
+                window_rewards.append(episode_reward)
+                run_avg_reward = np.mean(window_rewards)
                 total_reward += episode_reward
                 nepisodes += 1
-                if self.experience.t1 and episode_reward >= self.env.solved_criteria:
-                    nepisodes_solved += 1
+                if nepisodes % self.log_episode_interval == 0:
+                    self.writer.add_scalar('run_avg_reward/eps', run_avg_reward, nepisodes)
+                if run_avg_reward > self.env.solved_criteria:
+                    self._save_model(self.step, episode_reward)
+                    if self.solved_stop:
+                        break
             # report training stats
+            if self.step % self.log_step_interval == 0:
+                self.writer.add_scalar('run_avg_reward/steps', run_avg_reward, self.step)
             if self.step % self.prog_freq == 0:
                 self.logger.info('Reporting at %d step | Elapsed Time: %s' % (self.step, str(time.time() - self.start_time)))
-                self.logger.info('Training Stats: lr: %f  epsilon: %f  total_reward: %f  avg_reward: %f ' % (self.lr_adjusted, self.eps, total_reward, total_reward/nepisodes if nepisodes > 0 else 0.))
-                self.logger.info('Training Stats: nepisodes: %d  nepisodes_solved: %d  repisodes_solved: %f ' % (nepisodes, nepisodes_solved, nepisodes_solved/nepisodes if nepisodes > 0 else 0.))
+                self.logger.info('Training Stats: lr: %f  epsilon: %f nepisodes: %d ' % (self.lr_adjusted, self.eps, nepisodes))
+                self.logger.info('Training Stats: total_reward: %f  total_avg_reward: %f run_avg_reward: %f ' % (total_reward, total_reward/nepisodes if nepisodes > 0 else 0, run_avg_reward))
+
+    def test_model(self):
+        if not self.model:
+            self._init_model(training=False)
+        for episode in range(self.test_nepisodes):
+            episode_reward = 0
+            episode_steps = 0
+            self.experience = self.env.reset()
+            while not self.experience.t1:
+                action = self._forward(self.experience.s1)
+                self.experience = self.env.step(action)
+                self._visualize(visualize=True)
+                episode_steps += 1
+                episode_reward += self.experience.r
+                if episode_reward > self.env.solved_criteria:
+                    self.logger.info('Test episode %d at %d step with reward %f ' % (episode, episode_steps, episode_reward))
 
     @property
     def dtype(self):

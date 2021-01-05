@@ -1,14 +1,15 @@
 env:
   game: 'CartPole-v1'
-  seq_len: 4
+  seq_len: 2
   seed: 1314121
-  solved_criteria: 100
-  pomdp: True
+  solved_criteria: 200
+  pomdp: False
   pomdp_prob: 0.7
   mode: 0
 
 model:
-  hidden_dim: 128
+  model_file: 'cartpole_dqn.pt'
+  hidden_dim: 64
   enable_dueling: False
   dueling_type: 'avg'
   dtype: 'torch.float32'
@@ -20,10 +21,10 @@ env_type: 'gym'
 model_type: 'dqn_fc'
 memory_type: 'random'
 agent_type: 'dqn'
-model_name: 'cartpole_dqn'
-model_file: 'cartpole_dqn.pt'
 mode: 'train'  # train|test
-visualize: False
+train_visualize: False
+retrain: True
+solved_stop: True
 
 value_criteria: 'MSELoss'
 optimizer: 'Adam'
@@ -39,4 +40,8 @@ eps_end: 0.1
 prog_freq: 2500
 target_model_update: 100
 batch_size: 32
+run_avg_nepisodes: 100
+test_nepisodes: 1
+log_step_interval: 100
+log_episode_interval: 10
 enable_double_dqn: True

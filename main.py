@@ -15,8 +15,13 @@ ROOT_DIR = dirname(abspath(__file__))
 config_file = join(ROOT_DIR, 'configs', args.config_file)
 with open(config_file, 'r') as f:
     params = yaml.full_load(f)
-params['model_file'] = join(ROOT_DIR, 'saves', params['model_file'])
+
+# some modifications for ease of use
+model_file = params['model']['model_file']
+params['model']['model_file'] = join(ROOT_DIR, 'saves', model_file)
 params['env']['root_dir'] = ROOT_DIR
+log_folder_name = params['env']['game'] + params['model_type'] + params['memory_type']
+params['log_folder'] = join(ROOT_DIR, 'logs', log_folder_name)
 
 env_prototype = EnvDict[params['env_type']]
 model_prototype = ModelDict[params['model_type']]

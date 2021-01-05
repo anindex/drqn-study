@@ -27,6 +27,7 @@ class Model(nn.Module):  # TODO: enable_dueling is untested
         self.logger = kwargs.get('logger', logging.getLogger(__name__))
         # params
         self.name = name
+        self.model_file = kwargs.get('model_file', None)
         self.hidden_dim = kwargs.get('hidden_dim', 128)
         self.use_cuda = kwargs.get('use_cuda', True)
         self.dtype = kwargs.get('dtype', None)
