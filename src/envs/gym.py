@@ -33,7 +33,7 @@ class GymEnv(Env):  # low dimensional observations
         self.reset()
 
     def render(self):
-        if self.mode == 2:
+        if self.mode == 1:
             frame = self.env.render(mode='rgb_array')
             frame_name = join(self.img_dir, "frame_%04d.jpg" % self.frame_idx)
             self.imsave(frame_name, frame)
@@ -51,6 +51,7 @@ class GymEnv(Env):  # low dimensional observations
     def reset(self):
         self._reset_experience()
         self.seq_state1.append(self.env.reset())
+        return self._get_experience()
 
     def step(self, action):
         self.exp_action = action if self.enable_continuous else self.actions[action]

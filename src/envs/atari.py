@@ -52,6 +52,7 @@ class AtariEnv(Env):  # low dimensional observations
     def reset(self):
         self._reset_experience()
         self.seq_state1.append(preprocessAtari(self.env.reset()))
+        return self._get_experience()
 
     def step(self, action):
         self.exp_action = self.actions[action]

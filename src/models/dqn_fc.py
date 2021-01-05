@@ -23,9 +23,10 @@ class DQNFCModel(Model):
         else:  # one q value output for each action
             self.fc3 = nn.Linear(self.hidden_dim, self.output_dims)
         self._reset()
+        self.print_model()
 
-    def forward(self, x):
-        x = x.view(x.size(0), self.input_dims[0] * self.input_dims[1])
+    def forward(self, x):  # assume state shape (n, )
+        x = x.view(x.size(0), self.input_dims['seq_len'] * self.input_dims['state_shape'][0])
         x = F.relu((self.fc1(x)))
         x = F.relu((self.fc2(x)))
         if self.enable_dueling:
@@ -52,3 +53,7 @@ class DQNFCModel(Model):
             return x
         else:
             return self.fc3(x.view(x.size(0), -1))
+
+    def print_model(self):
+        self.logger.info('<-----------------------------------> DQNFC: %s' % self.name)
+        self.logger.info(self)

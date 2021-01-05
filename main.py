@@ -1,9 +1,11 @@
 import yaml
 import argparse
+import logging
 from os.path import join, dirname, abspath
 
 from src.utils.factory import EnvDict, ModelDict, MemoryDict, AgentDict
 
+logging.basicConfig(level=logging.INFO)
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                  description='Example run: python main.py cartpole_dqn.yaml')
 parser.add_argument('config_file', help='configuration to run experiment', type=str)

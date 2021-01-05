@@ -27,7 +27,6 @@ class Agent(object):
         # params
         self.model_name = self.model_params.get('model_name', 'no_name')
         self.model_file = self.model_params.get('model_file', None)
-        self.render = kwargs.get('render', False)
         self.visualize = kwargs.get('visualize', False)
         self.save_best = kwargs.get('save_best', True)
         if self.save_best:
@@ -35,11 +34,11 @@ class Agent(object):
             self.best_reward = None  # NOTE: only save a new model if achieves higher reward
         # agent_params
         # criteria and optimizer
-        self.value_criteria = eval(kwargs.get('value_criteria', 'MSELoss'))
+        self.value_criteria = eval(kwargs.get('value_criteria', 'MSELoss'))()
         self.optimizer_class = eval(kwargs.get('optimizer', 'Adam'))
         # hyperparameters
         self.steps = kwargs.get('steps', 100000)
-        self.learn_start = kwargs.get('learn_start', 10000)  # num steps using random policy
+        self.learn_start = kwargs.get('learn_start', 1000)  # num steps using random policy
         self.gamma = kwargs.get('gamma', 0.99)
         self.clip_grad = kwargs.get('clip_grad', 1.0)
         self.lr = kwargs.get('lr', 0.0001)
@@ -54,6 +53,7 @@ class Agent(object):
         self.action_repetition = kwargs.get('action_repetition', 1)
         self.test_nepisodes = kwargs.get('test_nepisodes', 1)
         self.target_model_update = kwargs.get('target_model_update', 1000)  # update every # steps
+        self.batch_size = kwargs.get('batch_size', 32)
         self.enable_double_dqn = kwargs.get('enable_double_dqn', False)
         # count step
         self.step = 0
@@ -93,4 +93,8 @@ class Agent(object):
         raise NotImplementedError()
 
     def test_model(self):   # testing pre-trained models
+        raise NotImplementedError()
+
+    @property
+    def dtype():
         raise NotImplementedError()

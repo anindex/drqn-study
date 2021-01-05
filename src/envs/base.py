@@ -16,8 +16,8 @@ class Env(object):
         self.logger = kwargs.get('logger', logging.getLogger(__name__))
         self.idx = kwargs.get('env_idx', 0)  # NOTE: for creating multiple environment instances
         # general setup
-        self.mode = kwargs.get('mode', 0)  # NOTE: save frames when mode=2
-        if self.mode == 2:
+        self.mode = kwargs.get('mode', 0)  # NOTE: save frames when mode=1
+        if self.mode == 1:
             try:
                 import scipy.misc
                 self.imsave = scipy.misc.imsave
@@ -40,9 +40,11 @@ class Env(object):
         self.seq_state1 = deque(maxlen=self.seq_len)
 
     def _preprocessStates(self, states):  # NOTE: padding zeros state if size is less than seq_len
+        if not states:
+            return np.zeros([self.seq_len, *self.state_shape])
         states = np.array(states)
         if states.shape[0] < self.seq_len:
-            states = np.append(np.zeros([self.seq_len - states.shape[0], *states.shape[1:]]), states, axis=0)
+            states = np.append(np.zeros([self.seq_len - states.shape[0], *self.state_shape]), states, axis=0)
         return states
 
     def _get_experience(self):
@@ -69,7 +71,7 @@ class Env(object):
         raise NotImplementedError()
 
     @property
-    def action_dim(self):
+    def action_dim(self):  # for now assuming discrete control
         if isinstance(self.env.action_space, Box):
             return self.env.action_space.shape[0]
         else:

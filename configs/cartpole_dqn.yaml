@@ -5,11 +5,13 @@ env:
   solved_criteria: 100
   pomdp: True
   pomdp_prob: 0.7
+  mode: 0
 
 model:
   hidden_dim: 128
   enable_dueling: False
   dueling_type: 'avg'
+  dtype: 'torch.float32'
 
 memory:
   size: 10000
@@ -21,6 +23,7 @@ agent_type: 'dqn'
 model_name: 'cartpole_dqn'
 model_file: 'cartpole_dqn.pt'
 mode: 'train'  # train|test
+visualize: False
 
 value_criteria: 'MSELoss'
 optimizer: 'Adam'
@@ -35,4 +38,5 @@ eps_decay: 50000
 eps_end: 0.1
 prog_freq: 2500
 target_model_update: 100
+batch_size: 32
 enable_double_dqn: True

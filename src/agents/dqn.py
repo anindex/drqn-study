@@ -24,10 +24,10 @@ class DQNAgent(Agent):
         self.model_params['state_shape'] = self.state_shape
         self.model_params['action_dim'] = self.action_dim
         self.model_params['seq_len'] = self.env_params['seq_len']
-        self.model = self.model_prototype(**self.model_params)
+        self.model = self.model_prototype(name='Current Model', **self.model_params).to(self.device)
         self._load_model(self.model_file)   # load pretrained model if provided
         # target_model
-        self.target_model = self.model_prototype(**self.model_params)
+        self.target_model = self.model_prototype(name='Target Model', **self.model_params).to(self.device)
         self._update_target_model_hard()
         # memory
         if memory_prototype is not None:
@@ -66,18 +66,16 @@ class DQNAgent(Agent):
             target_weights += self.target_model_update * self.model.state_dict()[key]
 
     def _visualize(self):
-        if not self.training:
-            if self.visualize:
-                self.env.visual()
-            if self.render:
-                self.env.render()
+        if self.visualize:
+            self.env.visual()
+            self.env.render()
 
     def _get_q_update(self, experiences):
         s0_batch_vb = torch.from_numpy(np.array([experiences[i].s0 for i in range(len(experiences))])).type(self.dtype).to(self.device)
         a_batch_vb = torch.from_numpy(np.array([experiences[i].a for i in range(len(experiences))])).long().to(self.device)
         r_batch_vb = torch.from_numpy(np.array([experiences[i].r for i in range(len(experiences))])).type(self.dtype).to(self.device)
         s1_batch_vb = torch.from_numpy(np.array([experiences[i].s1 for i in range(len(experiences))])).type(self.dtype).to(self.device)
-        t1_batch_vb = torch.from_numpy(np.array([0. if experiences[i].terminal1 else 1. for i in range(len(experiences))])).type(self.dtype).to(self.device)
+        t1_batch_vb = torch.from_numpy(np.array([0. if experiences[i].t1 else 1. for i in range(len(experiences))])).type(self.dtype).to(self.device)
         # Compute target Q values for mini-batch update.
         if self.enable_double_dqn:
             q_values_vb = self.model(s1_batch_vb).detach()    # Detach this variable from the current graph since we don't want gradients to propagate
@@ -119,7 +117,7 @@ class DQNAgent(Agent):
             self.memory.append(experience.s0, experience.a, experience.r, experience.s1, experience.t1)
         # Train the network on a single stochastic batch.
         if self.step > self.learn_start and self.step % self.train_interval == 0:
-            experiences = self.memory.sample(self.batch_size)
+            experiences = self.memory.sample_batch(self.batch_size)
             td_error_vb = self._get_q_update(experiences)
             self.optimizer.zero_grad()
             td_error_vb.backward()
@@ -140,36 +138,39 @@ class DQNAgent(Agent):
         self.optimizer = self.optimizer_class(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         self.lr_adjusted = self.lr
         self.logger.info('<===================================> Training ...')
-        self.training = True
         self._reset_training_loggings()
         self.start_time = time.time()
         self.step = 0
         nepisodes = 0
         nepisodes_solved = 0
         total_reward = 0.
-        should_start_new = True
+        new_eps = True
         while self.step < self.steps:
-            if should_start_new:    # start of a new episode
+            if new_eps:    # start of a new episode
                 episode_steps = 0
                 episode_reward = 0.
                 self.experience = self.env.reset()
                 self._visualize()
-                should_start_new = False  # reset flag
-            action = self._forward(self.experience.state1)
+                new_eps = False  # reset flag
+            action = self._forward(self.experience.s1)
             self.experience = self.env.step(action)
             self._visualize()
-            should_start_new = bool(self.experience.t1)
+            new_eps = bool(self.experience.t1)
             self._backward(self.experience)
             episode_steps += 1
             episode_reward += self.experience.r
             self.step += 1
-            if should_start_new:
+            if new_eps:
                 total_reward += episode_reward
                 nepisodes += 1
-                if self.experience.terminal1 and episode_reward >= self.env.solved_criteria:
+                if self.experience.t1 and episode_reward >= self.env.solved_criteria:
                     nepisodes_solved += 1
             # report training stats
             if self.step % self.prog_freq == 0:
                 self.logger.info('Reporting at %d step | Elapsed Time: %s' % (self.step, str(time.time() - self.start_time)))
                 self.logger.info('Training Stats: lr: %f  epsilon: %f  total_reward: %f  avg_reward: %f ' % (self.lr_adjusted, self.eps, total_reward, total_reward/nepisodes if nepisodes > 0 else 0.))
                 self.logger.info('Training Stats: nepisodes: %d  nepisodes_solved: %d  repisodes_solved: %f ' % (nepisodes, nepisodes_solved, nepisodes_solved/nepisodes if nepisodes > 0 else 0.))
+
+    @property
+    def dtype(self):
+        return self.model.dtype

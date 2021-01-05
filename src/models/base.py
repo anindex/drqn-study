@@ -21,14 +21,19 @@ def weight_reset(m):
 
 
 class Model(nn.Module):  # TODO: enable_dueling is untested
-    def __init__(self, **kwargs):
+    def __init__(self, name='Model', **kwargs):
         super(Model, self).__init__()
         # logging
         self.logger = kwargs.get('logger', logging.getLogger(__name__))
         # params
+        self.name = name
         self.hidden_dim = kwargs.get('hidden_dim', 128)
         self.use_cuda = kwargs.get('use_cuda', True)
-        self.dtype = kwargs.get('dtype', torch.float)
+        self.dtype = kwargs.get('dtype', None)
+        if self.dtype is None:
+            self.dtype = torch.float32
+        else:
+            self.dtype = eval(self.dtype)
         # model_params
         self.enable_dueling = kwargs.get('enable_dueling', False)
         self.dueling_type = kwargs.get('dueling_type', 'avg')
@@ -45,7 +50,6 @@ class Model(nn.Module):  # TODO: enable_dueling is untested
     def _reset(self):           # NOTE: should be called at each child's __init__
         self.apply(weight_reset)
         self.type(self.dtype)   # put on gpu if possible
-        self.print_model()
 
     def forward(self, input):
         raise NotImplementedError()
