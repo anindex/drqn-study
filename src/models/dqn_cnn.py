@@ -16,7 +16,7 @@ class DQNCNNModel(Model):
         self.conv1 = nn.Conv2d(self.input_dims['seq_len'], 32, kernel_size=3, stride=2)
         self.conv2 = nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1)
         self.conv3 = nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1)
-        self.fc4 = nn.Linear(32 * 5 * 5, self.hidden_dim)
+        self.fc4 = nn.Linear(32 * 11 * 11, self.hidden_dim)
         if self.enable_dueling:  # [0]: V(s); [1,:]: A(s, a)
             self.fc5 = nn.Linear(self.hidden_dim, self.output_dims + 1)
             self.v_idx = torch.LongTensor(self.output_dims).fill_(0).unsqueeze(0)

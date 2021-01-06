@@ -1,8 +1,8 @@
 env:
-  game: 'CartPole-v1'
-  seq_len: 2
+  game: 'Breakout-v0'
+  seq_len: 4
   seed: 1314121
-  solved_criteria: 200
+  solved_criteria: 30
   pomdp: False
   pomdp_type: 'flickering'  # flickering|delete_dim
   pomdp_mask: [1, 0, 1, 0]  # this mask is chosen depended on the hiding dimensions and the observation shape of the env (i.e. 0)
@@ -10,8 +10,7 @@ env:
   mode: 0
 
 model:
-  model_file: 'cartpole_dqn.pt'
-  hidden_dim: 64
+  model_file: 'breakout_dqncnn.pt'
   enable_dueling: False
   dueling_type: 'avg'
   dtype: 'torch.float32'
@@ -19,12 +18,12 @@ model:
 memory:
   size: 10000
 
-env_type: 'gym'
-model_type: 'dqn_fc'
+env_type: 'atari'
+model_type: 'dqn_cnn'
 memory_type: 'random'
 agent_type: 'dqn'
 mode: 'train'  # train|test
-train_visualize: False
+train_visualize: True
 retrain: True
 solved_stop: True
 

@@ -8,10 +8,10 @@ from collections import deque
 from src.agents.base import Agent, adjust_learning_rate
 
 
-class DQNAgent(Agent):
+class DRQNAgent(Agent):
     def __init__(self, env_prototype, model_prototype, memory_prototype=None, **kwargs):
-        super(DQNAgent, self).__init__(env_prototype, model_prototype, memory_prototype, **kwargs)
-        self.logger.info('<===================================> DQNAgent')
+        super(DRQNAgent, self).__init__(env_prototype, model_prototype, memory_prototype, **kwargs)
+        self.logger.info('<===================================> DRQNAgent')
         # env
         self.env = self.env_prototype(**self.env_params)
         self.state_shape = self.env.state_shape

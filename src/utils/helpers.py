@@ -30,8 +30,12 @@ def downsample(img):
     return img[::2, ::2]
 
 
+def crop_atari(img):
+    return img[25:-25]
+
+
 def preprocessAtari(img):
-    return to_grayscale(downsample(img))
+    return to_grayscale(downsample(crop_atari(img)))
 
 
 def crop_scale(img):

@@ -30,6 +30,12 @@ class Env(object):
         self.seed = kwargs.get('seed', 2020) + self.idx  # NOTE: so to give a different seed to each instance
         self.seq_len = kwargs.get('seq_len', 4)
         self.solved_criteria = kwargs.get('solved_criteria', 100)  # score
+        # POMDP setup
+        self.pomdp = kwargs.get('pomdp', False)
+        self.pomdp_type = kwargs.get('pomdp_type', 'flickering')
+        self.pomdp_mask = np.array(kwargs.get('pomdp_mask', []))
+        self.pomdp_prob = kwargs.get('pomdp_prob', 0.5)
+
         self._reset_experience()
 
     def _reset_experience(self):

@@ -12,9 +12,8 @@ from src.utils.helpers import preprocessAtari
 class AtariEnv(Env):  # low dimensional observations
     def __init__(self, **kwargs):
         super(AtariEnv, self).__init__(**kwargs)
-
-        assert self.env_type == "gym"
-
+        self.env_type = 'atari'
+        self.game = kwargs.get('game', 'Breakout-v0')
         self.env = gym.make(self.game)
         self.env.seed(self.seed)  # NOTE: so each env would be different
 
@@ -26,12 +25,10 @@ class AtariEnv(Env):  # low dimensional observations
         self.scale_factor = kwargs.get('scale_factor', 2)
         self.preprocess_mode = kwargs.get('preprocess_mode', 0)
         self.logger.info("State Space: %s", self.state_shape)
-
-        # POMDP setup
-        self.pomdp = kwargs.get('pomdp', False)
-        self.pomdp_prob = kwargs.get('pomdp_prob', 0.5)
-
         self.reset()
+
+        # atari POMDP
+        self.pomdp_mask = np.random.uniform(size=self.state_shape) < self.pomdp_prob
 
     def render(self):
         if self.mode == 2:
@@ -58,8 +55,12 @@ class AtariEnv(Env):  # low dimensional observations
         self.exp_action = self.actions[action]
         self.exp_state1, self.exp_reward, self.exp_terminal1, _ = self.env.step(self.exp_action)
         self.exp_state1 = preprocessAtari(self.exp_state1)
-        if self.pomdp and np.random.rand() > self.pomdp_prob:
-            self.exp_state1 = np.zeros(self.exp_state1.shape)
+        if self.pomdp:
+            if self.pomdp_type == 'flickering':
+                if np.random.rand() > self.pomdp_prob:
+                    self.exp_state1 = np.zeros(self.exp_state1.shape)
+            elif self.pomdp_type == 'delete_dim':
+                self.exp_state1 = np.array(self.exp_state1) * self.pomdp_mask
         self.seq_state0.append(self.seq_state1[-1])
         self.seq_state1.append(self.exp_state1)
         return self._get_experience()

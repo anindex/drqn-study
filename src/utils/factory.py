@@ -14,7 +14,7 @@ from src.agents.dqn import DQNAgent
 EnvDict = {"gym":         GymEnv,
            "atari":       AtariEnv}
 
-ModelDict = {"dqn-cnn":   DQNCNNModel,
+ModelDict = {"dqn_cnn":   DQNCNNModel,
              "dqn_fc":    DQNFCModel,
              "dqn_lstm":  DQNLSTMModel}
 

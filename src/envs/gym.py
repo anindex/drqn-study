@@ -23,10 +23,6 @@ class GymEnv(Env):  # low dimensional observations
         # state space setup
         self.logger.info("State  Space: %s", self.state_shape)
 
-        # POMDP setup
-        self.pomdp = kwargs.get('pomdp', False)
-        self.pomdp_prob = kwargs.get('pomdp_prob', 0.5)
-
         # continuous space
         self.enable_continuous = kwargs.get('enable_continuous', False)
 
@@ -56,8 +52,12 @@ class GymEnv(Env):  # low dimensional observations
     def step(self, action):
         self.exp_action = action if self.enable_continuous else self.actions[action]
         self.exp_state1, self.exp_reward, self.exp_terminal1, _ = self.env.step(self.exp_action)
-        if self.pomdp and np.random.rand() > self.pomdp_prob:
-            self.exp_state1 = np.zeros(self.state_shape)
+        if self.pomdp:
+            if self.pomdp_type == 'flickering':
+                if np.random.rand() > self.pomdp_prob:
+                    self.exp_state1 = np.zeros(self.state_shape)
+            elif self.pomdp_type == 'delete_dim' and self.pomdp_mask.size != 0:
+                self.exp_state1 = self.pomdp_mask * np.array(self.exp_state1)
         self.seq_state0.append(self.seq_state1[-1])
         self.seq_state1.append(self.exp_state1)
         return self._get_experience()

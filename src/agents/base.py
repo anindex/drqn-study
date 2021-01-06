@@ -2,6 +2,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import logging
+import numpy as np
+import random
 import torch
 from os.path import exists
 from torch.nn import MSELoss  # noqa
@@ -93,6 +95,91 @@ class Agent(object):
             torch.save(self.model.state_dict(), self.model_file)
             self.logger.info('Saved model: %s after %d steps: ' % (self.model_file, step))
 
+    def _visualize(self, visualize=True):
+        if visualize:
+            self.env.visual()
+            self.env.render()
+
+    def _reset_training_loggings(self):
+        self._reset_testing_loggings()
+        # during the evaluation in training, we additionally log for
+        # the predicted Q-values and TD-errors on validation data
+        self.v_avg_log = []
+        self.tderr_avg_log = []
+
+    def _reset_testing_loggings(self):
+        # setup logging for testing/evaluation stats
+        self.steps_avg_log = []
+        self.steps_std_log = []
+        self.reward_avg_log = []
+        self.reward_std_log = []
+        self.nepisodes_log = []
+
+    def _reset_experiences(self):
+        self.env.reset()
+        if self.memory is not None:
+            self.memory.reset()
+
+    def _init_model(self, training=False):
+        self.model = self.model_prototype(name='Current Model', **self.model_params).to(self.device)
+        if not self.retrain:
+            self._load_model()   # load pretrained model if provided
+        self.model.train(mode=training)
+        if training:
+            # target_model
+            self.target_model = self.model_prototype(name='Target Model', **self.model_params).to(self.device)
+            self._update_target_model_hard()
+            self.target_model.eval()
+            # memory
+            if self.memory_prototype is not None:
+                self.memory = self.memory_prototype(**self.memory_params)
+            # experience & states
+            self._reset_experiences()
+
+    # Hard update every `target_model_update` steps.
+    def _update_target_model_hard(self):
+        self.target_model.load_state_dict(self.model.state_dict())
+
+    # Soft update with `(1 - target_model_update) * old + target_model_update * new`.
+    def _update_target_model_soft(self):
+        for i, (key, target_weights) in enumerate(self.target_model.state_dict().iteritems()):
+            target_weights += self.target_model_update * self.model.state_dict()[key]
+
+    def _get_q_update(self, experiences):
+        s0_batch_vb = torch.from_numpy(np.array([experiences[i].s0 for i in range(len(experiences))])).type(self.dtype).to(self.device)
+        a_batch_vb = torch.from_numpy(np.array([experiences[i].a for i in range(len(experiences))])).long().to(self.device)
+        r_batch_vb = torch.from_numpy(np.array([experiences[i].r for i in range(len(experiences))])).type(self.dtype).to(self.device)
+        s1_batch_vb = torch.from_numpy(np.array([experiences[i].s1 for i in range(len(experiences))])).type(self.dtype).to(self.device)
+        t1_batch_vb = torch.from_numpy(np.array([0. if experiences[i].t1 else 1. for i in range(len(experiences))])).type(self.dtype).to(self.device)
+        # Compute target Q values for mini-batch update.
+        if self.enable_double_dqn:
+            q_values_vb = self.model(s1_batch_vb).detach()    # Detach this variable from the current graph since we don't want gradients to propagate
+            _, q_max_actions_vb = q_values_vb.max(dim=1, keepdim=True)
+            next_max_q_values_vb = self.target_model(s1_batch_vb).detach()
+            next_max_q_values_vb = next_max_q_values_vb.gather(1, q_max_actions_vb)
+        else:
+            next_max_q_values_vb = self.target_model(s1_batch_vb).detach()
+            next_max_q_values_vb, _ = next_max_q_values_vb.max(dim=1, keepdim=True)
+        # Compute r_t + gamma * max_a Q(s_t+1, a) and update the targets accordingly
+        current_q_values_vb = self.model(s0_batch_vb).gather(1, a_batch_vb.unsqueeze(1)).squeeze()
+        # Set discounted reward to zero for all states that were terminal.
+        next_max_q_values_vb = next_max_q_values_vb * t1_batch_vb.unsqueeze(1)
+        expected_q_values_vb = r_batch_vb + self.gamma * next_max_q_values_vb.squeeze()
+        td_error_vb = self.value_criteria(current_q_values_vb, expected_q_values_vb)
+        return td_error_vb
+
+    def _epsilon_greedy(self, q_values_ts):
+        self.eps = self.eps_end + max(0, (self.eps_start - self.eps_end) * (self.eps_decay - max(0, self.step - self.learn_start)) / self.eps_decay)
+        # choose action
+        if np.random.uniform() < self.eps:  # then we choose a random action
+            action = random.randrange(self.action_dim)
+        else:                               # then we choose the greedy action
+            if self.model_params['use_cuda']:
+                action = np.argmax(q_values_ts.cpu().numpy())
+            else:
+                action = np.argmax(q_values_ts.numpy())
+        return action
+
     def _forward(self, observation):
         raise NotImplementedError()
 
@@ -106,5 +193,5 @@ class Agent(object):
         raise NotImplementedError()
 
     @property
-    def dtype():
-        raise NotImplementedError()
+    def dtype(self):
+        return self.model.dtype
