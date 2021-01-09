@@ -1,6 +1,7 @@
 import yaml
 import argparse
 import logging
+from datetime import datetime
 from os.path import join, dirname, abspath
 
 from src.utils.factory import EnvDict, ModelDict, MemoryDict, AgentDict
@@ -17,10 +18,10 @@ with open(config_file, 'r') as f:
     params = yaml.full_load(f)
 
 # some modifications for ease of use
-model_file = params['model']['model_file']
-params['model']['model_file'] = join(ROOT_DIR, 'saves', model_file)
+now = datetime.now().strftime("%m%d%Y%H%M%S")
+params['model']['model_file'] = join(ROOT_DIR, 'saves', now + '_' + params['model']['model_file'])
 params['env']['root_dir'] = ROOT_DIR
-log_folder_name = params['env']['game'] + params['model_type'] + params['memory_type']
+log_folder_name = params['env']['game'] + params['model_type'] + params['memory_type'] + now
 params['log_folder'] = join(ROOT_DIR, 'logs', log_folder_name)
 
 env_prototype = EnvDict[params['env_type']]

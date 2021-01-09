@@ -8,7 +8,7 @@ from src.replay.base import Memory, Experience, sample_batch_indexes
 
 
 class EpisodicMemory(Memory):
-    def __init__(self, size, max_episode_length):
+    def __init__(self, size, max_episode_length=0):
         super(EpisodicMemory, self).__init__(size)
         # Max number of transitions possible will be the memory capacity, could be much less
         self.max_episode_length = max_episode_length
@@ -24,22 +24,21 @@ class EpisodicMemory(Memory):
             self.idx = min(self.idx + 1, self.num_episodes - 1)
 
     # Samples random trajectory
-    def sample(self, maxlen=0, idx=None):
+    def sample(self, idx=None):
         if idx is None:
             idx = random.randrange(0, len(self.memory) - 1)  # -1 because newest traj maybe empty
         mem = self.memory[idx]
         T = len(mem)
-        # Take a random subset of trajectory if maxlen specified, otherwise return full trajectory
-        if maxlen > 0 and T > maxlen + 1:
-            t = random.randrange(T - maxlen - 1)  # Include next state after final "maxlen" state
-            return mem[t:t + maxlen + 1]
+        if self.max_episode_length > 0 and T > self.max_episode_length + 1:
+            t = random.randrange(T - self.max_episode_length - 1)  # Include next state after final "maxlen" state
+            return mem[t:t + self.max_episode_length + 1]
         return mem
 
     # Samples batch of trajectories, truncating them to the same length
-    def sample_batch(self, batch_size, maxlen=0, truncated=True, batch_idxs=None):
+    def sample_batch(self, batch_size, truncated=True, batch_idxs=None):
         if batch_idxs is None:
             batch_idxs = sample_batch_indexes(0, len(self.memory) - 1, batch_size)
-        batch = [self.sample(maxlen=maxlen, idx=idx) for idx in batch_idxs]
+        batch = [self.sample(idx=idx) for idx in batch_idxs]
         if not truncated:
             return batch
         minimum_size = min(len(trajectory) for trajectory in batch)

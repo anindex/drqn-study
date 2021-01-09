@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 import time
 import torch
+import numpy as np
 from collections import deque
 
 from src.agents.base import Agent, adjust_learning_rate
@@ -12,34 +13,45 @@ class DQNAgent(Agent):
     def __init__(self, env_prototype, model_prototype, memory_prototype=None, **kwargs):
         super(DQNAgent, self).__init__(env_prototype, model_prototype, memory_prototype, **kwargs)
         self.logger.info('<===================================> DQNAgent')
-        # env
-        self.env = self.env_prototype(**self.env_params)
-        self.state_shape = self.env.state_shape
-        self.action_dim = self.env.action_dim
-        # cuda
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model_params['use_cuda'] = torch.cuda.is_available()
-        # model
-        self.model_params['state_shape'] = self.state_shape
-        self.model_params['action_dim'] = self.action_dim
-        self.model_params['seq_len'] = self.env_params['seq_len']
+
+    def _get_q_update(self, experiences):
+        batch_size = len(experiences)
+        s0_batch = torch.from_numpy(np.array([experiences[i].s0 for i in range(batch_size)])).type(self.dtype).to(self.device)
+        a_batch = torch.from_numpy(np.array([experiences[i].a for i in range(batch_size)])).long().to(self.device)
+        r_batch = torch.from_numpy(np.array([experiences[i].r for i in range(batch_size)])).type(self.dtype).to(self.device)
+        s1_batch = torch.from_numpy(np.array([experiences[i].s1 for i in range(batch_size)])).type(self.dtype).to(self.device)
+        t1_batch = torch.from_numpy(np.array([float(not experiences[i].t1) for i in range(batch_size)])).type(self.dtype).to(self.device)
+        # Compute target Q values for mini-batch update.
+        if self.enable_double_dqn:
+            q_values = self.model(s1_batch).detach()    # Detach this variable from the current graph since we don't want gradients to propagate
+            _, q_max_actions = q_values.max(dim=1, keepdim=True)
+            next_max_q_values = self.target_model(s1_batch).detach()
+            next_max_q_values = next_max_q_values.gather(1, q_max_actions)
+        else:
+            next_max_q_values = self.target_model(s1_batch).detach()
+            next_max_q_values, _ = next_max_q_values.max(dim=1, keepdim=True)
+        # Compute r_t + gamma * max_a Q(s_t+1, a) and update the targets accordingly
+        current_q_values = self.model(s0_batch).gather(1, a_batch.unsqueeze(1)).squeeze()
+        # Set discounted reward to zero for all states that were terminal.
+        next_max_q_values = next_max_q_values * t1_batch.unsqueeze(1)
+        expected_q_values = (r_batch + self.gamma * next_max_q_values.squeeze()).squeeze()
+        td_error = self.value_criteria(current_q_values, expected_q_values)
+        return td_error
 
     def _forward(self, states):
         states = torch.from_numpy(states).unsqueeze(0).type(self.dtype).to(self.device)
-        q_values_ts = self.model(states).detach()
-        action = self._epsilon_greedy(q_values_ts)
+        q_values = self.model(states).detach()
+        action = self._epsilon_greedy(q_values)
         return action
 
-    def _backward(self, experience):
-        # Store most recent experience in memory.
-        if self.step % self.memory_interval == 0:
-            self.memory.append(experience.s0, experience.a, experience.r, experience.s1, experience.t1)
+    def _backward(self, experiences=None):
         # Train the network on a single stochastic batch.
-        if self.step > self.learn_start and self.step % self.train_interval == 0:
-            experiences = self.memory.sample_batch(self.batch_size)
-            td_error_vb = self._get_q_update(experiences)
+        if self.step % self.train_interval == 0:
+            if experiences is None:
+                experiences = self.memory.sample_batch(self.batch_size)
+            td_error = self._get_q_update(experiences)
             self.optimizer.zero_grad()
-            td_error_vb.backward()
+            td_error.backward()
             for param in self.model.parameters():
                 param.grad.data.clamp_(-self.clip_grad, self.clip_grad)
             self.optimizer.step()
@@ -52,35 +64,42 @@ class DQNAgent(Agent):
         if self.target_model_update < 1.:
             self._update_target_model_soft()    # Soft update with `(1 - target_model_update) * old + target_model_update * new`.
 
+    def _random_initialization(self):
+        self.logger.info('<===================================> Random policy initialization for %d eps' % self.random_eps)
+        for e in range(self.random_eps):
+            self.experience = self.env.reset()
+            while not self.experience.t1:
+                action = self.env.sample_random_action()
+                self.experience = self.env.step(action)
+                self._backward([self.experience])
+
     def fit_model(self):
         self._init_model(training=True)
         self.eps = self.eps_start
         self.optimizer = self.optimizer_class(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         self.lr_adjusted = self.lr
-        self.logger.info('<===================================> Training ...')
         self._reset_training_loggings()
         self.start_time = time.time()
         self.step = 0
         nepisodes = 0
         total_reward = 0.
         window_rewards = deque(maxlen=self.run_avg_nepisodes)
-        new_eps = True
+        episode_steps, episode_reward = 0, 0
+        self._random_initialization()
+        self.logger.info('<===================================> Training ...')
+        self.experience = self.env.reset()
         while self.step < self.steps:
-            if new_eps:    # start of a new episode
-                episode_steps = 0
-                episode_reward = 0.
-                self.experience = self.env.reset()
-                self._visualize(visualize=self.train_visualize)
-                new_eps = False  # reset flag
             action = self._forward(self.experience.s1)
             self.experience = self.env.step(action)
+            self._store_experience(self.experience)
             self._visualize(visualize=self.train_visualize)
-            new_eps = bool(self.experience.t1)
-            self._backward(self.experience)
+            if self.step > self.learn_start:
+                self._backward()
             episode_steps += 1
             episode_reward += self.experience.r
             self.step += 1
-            if new_eps:
+            if self.experience.t1:
+                self.experience = self.env.reset()
                 window_rewards.append(episode_reward)
                 run_avg_reward = sum(window_rewards) / len(window_rewards)
                 total_reward += episode_reward
@@ -91,9 +110,10 @@ class DQNAgent(Agent):
                     self._save_model(self.step, episode_reward)
                     if self.solved_stop:
                         break
+                episode_steps, episode_reward = 0, 0
             # report training stats
-            if self.step % self.log_step_interval == 0:
-                self.writer.add_scalar('run_avg_reward/steps', run_avg_reward, self.step)
+            # if self.step % self.log_step_interval == 0:
+            #    self.writer.add_scalar('run_avg_reward/steps', run_avg_reward, self.step)
             if self.step % self.prog_freq == 0:
                 self.logger.info('Reporting at %d step | Elapsed Time: %s' % (self.step, str(time.time() - self.start_time)))
                 self.logger.info('Training Stats: lr: %f  epsilon: %f nepisodes: %d ' % (self.lr_adjusted, self.eps, nepisodes))

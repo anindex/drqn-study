@@ -50,7 +50,7 @@ class Model(nn.Module):  # TODO: enable_dueling is untested
 
     def _reset(self):           # NOTE: should be called at each child's __init__
         self.apply(weight_reset)
-        self.type(self.dtype)   # put on gpu if possible
+        self.type(self.dtype)
 
     def forward(self, input):
         raise NotImplementedError()

@@ -19,19 +19,27 @@ def adjust_learning_rate(optimizer, lr):
 
 class Agent(object):
     def __init__(self, env_prototype, model_prototype, memory_prototype=None, **kwargs):
-        # logging
-        self.logger = kwargs.get('logger', logging.getLogger(__name__))
-        # prototypes for env & model & memory
+        # env
         self.env_prototype = env_prototype
         self.env_params = kwargs.get('env')
-        self.env = None
+        self.env = self.env_prototype(**self.env_params)
+        self.state_shape = self.env.state_shape
+        self.action_dim = self.env.action_dim
+        # model
         self.model_prototype = model_prototype
         self.model_params = kwargs.get('model')
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model_params['use_cuda'] = torch.cuda.is_available()
+        self.model_params['state_shape'] = self.state_shape
+        self.model_params['action_dim'] = self.action_dim
+        self.model_params['seq_len'] = self.env_params['seq_len']
         self.model = None
+        # memory
         self.memory_prototype = memory_prototype
         self.memory_params = kwargs.get('memory')
         self.memory = None
         # logging
+        self.logger = kwargs.get('logger', logging.getLogger(__name__))
         self.model_file = self.model_params.get('model_file', None)
         self.log_folder = kwargs.get('log_folder', 'logs')
         self.writer = SummaryWriter(self.log_folder)
@@ -50,12 +58,13 @@ class Agent(object):
         self.optimizer_class = eval(kwargs.get('optimizer', 'Adam'))
         # hyperparameters
         self.steps = kwargs.get('steps', 100000)
-        self.learn_start = kwargs.get('learn_start', 1000)  # num steps using random policy
+        self.random_eps = kwargs.get('random_eps', 50)
+        self.learn_start = kwargs.get('learn_start', 1000)  # num steps to fill the memory
         self.gamma = kwargs.get('gamma', 0.99)
-        self.clip_grad = kwargs.get('clip_grad', 1.0)
+        self.clip_grad = kwargs.get('clip_grad', float('inf'))
         self.lr = kwargs.get('lr', 0.0001)
         self.lr_decay = kwargs.get('lr_decay', False)
-        self.weight_decay = kwargs.get('weight_decay', 0.0005)
+        self.weight_decay = kwargs.get('weight_decay', 0.)
         self.eps_start = kwargs.get('eps_start', 1.0)
         self.eps_decay = kwargs.get('eps_decay', 50000)  # num of decaying steps
         self.eps_end = kwargs.get('eps_end', 0.1)
@@ -136,54 +145,43 @@ class Agent(object):
             # experience & states
             self._reset_experiences()
 
+    def _store_experience(self, experience):
+        # Store most recent experience in memory.
+        if self.step % self.memory_interval == 0:
+            self.memory.append(experience.s0, experience.a, experience.r, experience.s1, experience.t1)
+
     # Hard update every `target_model_update` steps.
     def _update_target_model_hard(self):
         self.target_model.load_state_dict(self.model.state_dict())
 
     # Soft update with `(1 - target_model_update) * old + target_model_update * new`.
     def _update_target_model_soft(self):
-        for i, (key, target_weights) in enumerate(self.target_model.state_dict().iteritems()):
-            target_weights += self.target_model_update * self.model.state_dict()[key]
+        for target_param, local_param in zip(self.target_model.parameters(), self.model.parameters()):
+            target_param.data.copy_(self.target_model_update * local_param.data + (1.0 - self.target_model_update) * target_param.data)
 
-    def _get_q_update(self, experiences):
-        s0_batch_vb = torch.from_numpy(np.array([experiences[i].s0 for i in range(len(experiences))])).type(self.dtype).to(self.device)
-        a_batch_vb = torch.from_numpy(np.array([experiences[i].a for i in range(len(experiences))])).long().to(self.device)
-        r_batch_vb = torch.from_numpy(np.array([experiences[i].r for i in range(len(experiences))])).type(self.dtype).to(self.device)
-        s1_batch_vb = torch.from_numpy(np.array([experiences[i].s1 for i in range(len(experiences))])).type(self.dtype).to(self.device)
-        t1_batch_vb = torch.from_numpy(np.array([0. if experiences[i].t1 else 1. for i in range(len(experiences))])).type(self.dtype).to(self.device)
-        # Compute target Q values for mini-batch update.
-        if self.enable_double_dqn:
-            q_values_vb = self.model(s1_batch_vb).detach()    # Detach this variable from the current graph since we don't want gradients to propagate
-            _, q_max_actions_vb = q_values_vb.max(dim=1, keepdim=True)
-            next_max_q_values_vb = self.target_model(s1_batch_vb).detach()
-            next_max_q_values_vb = next_max_q_values_vb.gather(1, q_max_actions_vb)
-        else:
-            next_max_q_values_vb = self.target_model(s1_batch_vb).detach()
-            next_max_q_values_vb, _ = next_max_q_values_vb.max(dim=1, keepdim=True)
-        # Compute r_t + gamma * max_a Q(s_t+1, a) and update the targets accordingly
-        current_q_values_vb = self.model(s0_batch_vb).gather(1, a_batch_vb.unsqueeze(1)).squeeze()
-        # Set discounted reward to zero for all states that were terminal.
-        next_max_q_values_vb = next_max_q_values_vb * t1_batch_vb.unsqueeze(1)
-        expected_q_values_vb = r_batch_vb + self.gamma * next_max_q_values_vb.squeeze()
-        td_error_vb = self.value_criteria(current_q_values_vb, expected_q_values_vb)
-        return td_error_vb
-
-    def _epsilon_greedy(self, q_values_ts):
+    def _epsilon_greedy(self, q_values):
         self.eps = self.eps_end + max(0, (self.eps_start - self.eps_end) * (self.eps_decay - max(0, self.step - self.learn_start)) / self.eps_decay)
         # choose action
         if np.random.uniform() < self.eps:  # then we choose a random action
             action = random.randrange(self.action_dim)
         else:                               # then we choose the greedy action
             if self.model_params['use_cuda']:
-                action = np.argmax(q_values_ts.cpu().numpy())
+                action = np.argmax(q_values.cpu().numpy())
             else:
-                action = np.argmax(q_values_ts.numpy())
+                action = np.argmax(q_values.numpy())
         return action
 
-    def _forward(self, observation):
+    def _create_zero_lstm_hidden(self, batch_size=1):
+        return (torch.zeros(self.model.num_lstm_layer, batch_size, self.model.hidden_dim).type(self.dtype).to(self.device),
+                torch.zeros(self.model.num_lstm_layer, batch_size, self.model.hidden_dim).type(self.dtype).to(self.device))
+
+    def _get_q_update(self, experiences):
         raise NotImplementedError()
 
-    def _backward(self, reward, terminal):
+    def _forward(self, states):
+        raise NotImplementedError()
+
+    def _backward(self, experience):
         raise NotImplementedError()
 
     def fit_model(self):    # training

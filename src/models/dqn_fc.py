@@ -5,7 +5,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 
 from src.models.base import Model
 
@@ -25,19 +24,14 @@ class DQNFCModel(Model):
         self._reset()
         self.print_model()
 
-    def forward(self, x):  # assume state shape (n, )
-        x = x.view(x.size(0), self.input_dims['seq_len'] * self.input_dims['state_shape'][0])
-        x = F.relu((self.fc1(x)))
-        x = F.relu((self.fc2(x)))
+    def forward(self, x):
+        x = x.view(x.size(0), self.input_dims['seq_len'] * np.prod(self.input_dims['state_shape']))
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
         if self.enable_dueling:
-            x = self.fc3(x.view(x.size(0), -1))
-            v_idx_vb = Variable(self.v_idx)
-            a_idx_vb = Variable(self.a_idx)
-            if self.use_cuda:
-                v_idx_vb = v_idx_vb.cuda()
-                a_idx_vb = a_idx_vb.cuda()
-            v = x.gather(1, v_idx_vb.expand(x.size(0), self.output_dims))
-            a = x.gather(1, a_idx_vb.expand(x.size(0), self.output_dims))
+            v = x.gather(1, self.v_idx.expand(x.size(0), self.output_dims))
+            a = x.gather(1, self.a_idx.expand(x.size(0), self.output_dims))
             # now calculate Q(s, a)
             if self.dueling_type == 'avg':      # Q(s,a)=V(s)+(A(s,a)-avg_a(A(s,a)))
                 # x = v + (a - a.mean(1)).expand(x.size(0), self.output_dims)   # 0.1.12
@@ -49,10 +43,7 @@ class DQNFCModel(Model):
                 x = v + a
             else:
                 raise ValueError('dueling_type must be one of {\'avg\', \'max\', \'naive\'}')
-            del v_idx_vb, a_idx_vb, v, a
-            return x
-        else:
-            return self.fc3(x.view(x.size(0), -1))
+        return x
 
     def print_model(self):
         self.logger.info('<-----------------------------------> DQNFC: %s' % self.name)
