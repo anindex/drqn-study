@@ -4,7 +4,6 @@ from __future__ import print_function
 import time
 import torch
 import numpy as np
-from collections import deque
 
 from src.agents.base import Agent, adjust_learning_rate
 
@@ -22,20 +21,30 @@ class DQNAgent(Agent):
         s1_batch = torch.from_numpy(np.array([experiences[i].s1 for i in range(batch_size)])).type(self.dtype).to(self.device)
         t1_batch = torch.from_numpy(np.array([float(not experiences[i].t1) for i in range(batch_size)])).type(self.dtype).to(self.device)
         # Compute target Q values for mini-batch update.
-        if self.enable_double_dqn:
+        if self.bootstrap_type == 'double_q':
             q_values = self.model(s1_batch).detach()    # Detach this variable from the current graph since we don't want gradients to propagate
             _, q_max_actions = q_values.max(dim=1, keepdim=True)
             next_max_q_values = self.target_model(s1_batch).detach()
             next_max_q_values = next_max_q_values.gather(1, q_max_actions)
-        else:
+        elif self.bootstrap_type == 'target_q':
             next_max_q_values = self.target_model(s1_batch).detach()
             next_max_q_values, _ = next_max_q_values.max(dim=1, keepdim=True)
+        elif self.bootstrap_type == 'learn_q':
+            next_max_q_values = self.model(s1_batch).detach()
+            next_max_q_values, _ = next_max_q_values.max(dim=1, keepdim=True)
+        else:
+            raise ValueError('Input bootstrapping type is not supported!')
         # Compute r_t + gamma * max_a Q(s_t+1, a) and update the targets accordingly
         current_q_values = self.model(s0_batch).gather(1, a_batch.unsqueeze(1)).squeeze()
         # Set discounted reward to zero for all states that were terminal.
-        next_max_q_values = next_max_q_values * t1_batch.unsqueeze(1)
-        expected_q_values = (r_batch + self.gamma * next_max_q_values.squeeze()).squeeze()
+        next_max_q_values = (next_max_q_values * t1_batch.unsqueeze(1)).squeeze()
+        expected_q_values = (r_batch + self.gamma * next_max_q_values).squeeze()
         td_error = self.value_criteria(current_q_values, expected_q_values)
+        if self.step != 0 and self.step % self.log_step_interval == 0:  # logging
+            self.window_max_abs_q.append(np.mean(np.abs(next_max_q_values.tolist())))
+            self.max_abs_q_log.append(np.max(self.window_max_abs_q))
+            self.tderr_log.append(td_error.item())
+            self.step_log.append(self.step)
         return td_error
 
     def _forward(self, states):
@@ -83,7 +92,6 @@ class DQNAgent(Agent):
         self.step = 0
         nepisodes = 0
         total_reward = 0.
-        window_rewards = deque(maxlen=self.run_avg_nepisodes)
         episode_steps, episode_reward = 0, 0
         self._random_initialization()
         self.logger.info('<===================================> Training ...')
@@ -100,24 +108,26 @@ class DQNAgent(Agent):
             self.step += 1
             if self.experience.t1:
                 self.experience = self.env.reset()
-                window_rewards.append(episode_reward)
-                run_avg_reward = sum(window_rewards) / len(window_rewards)
+                self.window_scores.append(episode_reward)
+                run_avg_reward = np.mean(self.window_scores)
                 total_reward += episode_reward
                 nepisodes += 1
+                total_avg_reward = total_reward / nepisodes if nepisodes > 0 else 0
                 if nepisodes % self.log_episode_interval == 0:
-                    self.writer.add_scalar('run_avg_reward/eps', run_avg_reward, nepisodes)
+                    if self.use_tensorboard:
+                        self.writer.add_scalar('run_avg_reward/eps', run_avg_reward, nepisodes)
+                    self.run_avg_score_log.append(run_avg_reward)
+                    self.total_avg_score_log.append(total_avg_reward)
+                    self.eps_log.append(nepisodes)
                 if run_avg_reward > self.env.solved_criteria:
                     self._save_model(self.step, episode_reward)
                     if self.solved_stop:
                         break
                 episode_steps, episode_reward = 0, 0
-            # report training stats
-            # if self.step % self.log_step_interval == 0:
-            #    self.writer.add_scalar('run_avg_reward/steps', run_avg_reward, self.step)
             if self.step % self.prog_freq == 0:
                 self.logger.info('Reporting at %d step | Elapsed Time: %s' % (self.step, str(time.time() - self.start_time)))
                 self.logger.info('Training Stats: lr: %f  epsilon: %f nepisodes: %d ' % (self.lr_adjusted, self.eps, nepisodes))
-                self.logger.info('Training Stats: total_reward: %f  total_avg_reward: %f run_avg_reward: %f ' % (total_reward, total_reward/nepisodes if nepisodes > 0 else 0, run_avg_reward))
+                self.logger.info('Training Stats: total_reward: %f  total_avg_reward: %f run_avg_reward: %f ' % (total_reward, total_avg_reward, run_avg_reward))
 
     def test_model(self):
         if not self.model:

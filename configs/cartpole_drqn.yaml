@@ -3,6 +3,7 @@ env:
   seq_len: 1
   seed: 1314121
   solved_criteria: 195
+  q_threhold: 200
   pomdp: True
   pomdp_type: 'delete_dim'  # flickering|delete_dim
   pomdp_mask: [1, 0, 1, 0]  # this mask is chosen depended on the hiding dimensions and the observation shape of the env (i.e. 0)
@@ -47,8 +48,9 @@ prog_freq: 1000
 target_model_update: 0.05
 batch_size: 4
 train_interval: 1
-run_avg_nepisodes: 100
+log_window_size: 100
 test_nepisodes: 1
 log_step_interval: 100
 log_episode_interval: 10
-enable_double_dqn: True
+bootstrap_type: 'double_q'  # learn_q|target_q|double_q
+log_lstm_grad: True

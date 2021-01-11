@@ -30,6 +30,7 @@ class Env(object):
         self.seed = kwargs.get('seed', 2020) + self.idx  # NOTE: so to give a different seed to each instance
         self.seq_len = kwargs.get('seq_len', 4)
         self.solved_criteria = kwargs.get('solved_criteria', 100)  # score
+        self.q_threhold = kwargs.get('q_threhold', 100)  # threshold to justify whether soft-divergence has occured
         # POMDP setup
         self.pomdp = kwargs.get('pomdp', False)
         self.pomdp_type = kwargs.get('pomdp_type', 'flickering')

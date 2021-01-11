@@ -4,6 +4,7 @@ from __future__ import print_function
 import logging
 import numpy as np
 import random
+from collections import deque
 import torch
 from os.path import exists
 from torch.nn import MSELoss  # noqa
@@ -38,11 +39,14 @@ class Agent(object):
         self.memory_prototype = memory_prototype
         self.memory_params = kwargs.get('memory')
         self.memory = None
+        random.seed(self.env_params['seed'])
         # logging
         self.logger = kwargs.get('logger', logging.getLogger(__name__))
         self.model_file = self.model_params.get('model_file', None)
         self.log_folder = kwargs.get('log_folder', 'logs')
-        self.writer = SummaryWriter(self.log_folder)
+        self.use_tensorboard = kwargs.get('use_tensorboard', True)
+        if self.use_tensorboard:
+            self.writer = SummaryWriter(self.log_folder)
         self.log_step_interval = kwargs.get('log_step_interval', 100)
         self.log_episode_interval = kwargs.get('log_episode_interval', 10)
         self.train_visualize = kwargs.get('train_visualize', False)
@@ -52,6 +56,8 @@ class Agent(object):
             self.best_reward = None  # NOTE: only save a new model if achieves higher reward
         self.retrain = kwargs.get('retrain', True)
         self.solved_stop = kwargs.get('solved_stop', True)
+        self.log_window_size = kwargs.get('log_window_size', 100)
+        self._reset_training_loggings()
         # agent_params
         # criteria and optimizer
         self.value_criteria = eval(kwargs.get('value_criteria', 'MSELoss'))()
@@ -73,10 +79,9 @@ class Agent(object):
         self.memory_interval = kwargs.get('memory_interval', 1)
         self.action_repetition = kwargs.get('action_repetition', 1)
         self.test_nepisodes = kwargs.get('test_nepisodes', 1)
-        self.run_avg_nepisodes = kwargs.get('run_avg_nepisodes', 100)
         self.target_model_update = kwargs.get('target_model_update', 1000)  # update every # steps
         self.batch_size = kwargs.get('batch_size', 32)
-        self.enable_double_dqn = kwargs.get('enable_double_dqn', False)
+        self.bootstrap_type = kwargs.get('bootstrap_type', 'double_q')
         # count step
         self.step = 0
 
@@ -110,19 +115,14 @@ class Agent(object):
             self.env.render()
 
     def _reset_training_loggings(self):
-        self._reset_testing_loggings()
-        # during the evaluation in training, we additionally log for
-        # the predicted Q-values and TD-errors on validation data
-        self.v_avg_log = []
-        self.tderr_avg_log = []
-
-    def _reset_testing_loggings(self):
-        # setup logging for testing/evaluation stats
-        self.steps_avg_log = []
-        self.steps_std_log = []
-        self.reward_avg_log = []
-        self.reward_std_log = []
-        self.nepisodes_log = []
+        self.window_scores = deque(maxlen=self.log_window_size)
+        self.window_max_abs_q = deque(maxlen=self.log_window_size)
+        self.max_abs_q_log = [0]  # per step
+        self.tderr_log = [0]  # per step
+        self.total_avg_score_log = [0]  # per eps
+        self.run_avg_score_log = [0]  # per eps
+        self.step_log = [0]
+        self.eps_log = [0]
 
     def _reset_experiences(self):
         self.env.reset()
@@ -142,8 +142,8 @@ class Agent(object):
             # memory
             if self.memory_prototype is not None:
                 self.memory = self.memory_prototype(**self.memory_params)
-            # experience & states
-            self._reset_experiences()
+        # experience & states
+        self._reset_experiences()
 
     def _store_experience(self, experience):
         # Store most recent experience in memory.
@@ -189,6 +189,10 @@ class Agent(object):
 
     def test_model(self):   # testing pre-trained models
         raise NotImplementedError()
+
+    def set_seed(self, seed=0):
+        random.seed(seed)
+        self.env.env.seed(seed)
 
     @property
     def dtype(self):
