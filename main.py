@@ -21,7 +21,7 @@ with open(config_file, 'r') as f:
 now = datetime.now().strftime("%m%d%Y%H%M%S")
 params['model']['model_file'] = join(ROOT_DIR, 'saves', now + '_' + params['model']['model_file'])
 params['env']['root_dir'] = ROOT_DIR
-log_folder_name = params['env']['game'] + params['model_type'] + params['memory_type'] + now
+log_folder_name = params['env']['game'] + '_' + params['model_type'] + '_' + params['memory_type'] + now
 params['log_folder'] = join(ROOT_DIR, 'logs', log_folder_name)
 
 env_prototype = EnvDict[params['env_type']]
