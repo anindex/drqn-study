@@ -26,7 +26,7 @@ def loggerConfig(log_file, verbose=2):
 
 
 def to_grayscale(img):
-    return np.mean(img, axis=2).astype(np.uint8)
+    return np.mean(img, axis=2, keepdims=True)
 
 
 def downsample(img):
@@ -38,7 +38,8 @@ def crop_atari(img):
 
 
 def preprocessAtari(img):
-    return to_grayscale(downsample(crop_atari(img)))
+    img = to_grayscale(downsample(crop_atari(img)))
+    return img.reshape((-1, img.shape[0], img.shape[1]))
 
 
 def crop_scale(img):

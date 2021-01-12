@@ -31,9 +31,9 @@ class Agent(object):
         self.model_params = kwargs.get('model')
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model_params['use_cuda'] = torch.cuda.is_available()
-        self.model_params['state_shape'] = self.state_shape
+        self.model_params['stack_len'] = self.env_params['stack_len']
+        self.model_params['state_shape'] = (self.model_params['stack_len'] * self.state_shape[0], *self.state_shape[1:])  # state_shape in model: (stack_len * C, H, W)
         self.model_params['action_dim'] = self.action_dim
-        self.model_params['seq_len'] = self.env_params['seq_len']
         self.model = None
         # memory
         self.memory_prototype = memory_prototype

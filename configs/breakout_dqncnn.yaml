@@ -1,8 +1,9 @@
 env:
   game: 'Breakout-v0'
-  seq_len: 4
+  stack_len: 4
   seed: 1314121
   solved_criteria: 30
+  q_threhold: 200
   pomdp: False
   pomdp_type: 'flickering'  # flickering|delete_dim
   pomdp_mask: [1, 0, 1, 0]  # this mask is chosen depended on the hiding dimensions and the observation shape of the env (i.e. 0)
@@ -11,6 +12,8 @@ env:
 
 model:
   model_file: 'breakout_dqncnn.pt'
+  kernel_num: 16
+  hidden_dim: 64
   enable_dueling: False
   dueling_type: 'avg'
   dtype: 'torch.float32'
@@ -23,26 +26,29 @@ model_type: 'dqn_cnn'
 memory_type: 'random'
 agent_type: 'dqn'
 mode: 'train'  # train|test
+value_criteria: 'MSELoss'
+optimizer: 'Adam'
 train_visualize: True
 retrain: True
 solved_stop: True
 
-value_criteria: 'MSELoss'
-optimizer: 'Adam'
+random_eps: 10
 steps: 100000
 learn_start: 1000
 gamma: 0.99
-clip_grad: 1.0
+# clip_grad: 1.0
 lr: 0.0001
 lr_decay: False
-eps_start: 1.0
+eps_start: 0.9
 eps_decay: 50000
 eps_end: 0.1
-prog_freq: 2500
-target_model_update: 100
-batch_size: 32
-run_avg_nepisodes: 100
+prog_freq: 1000
+target_model_update: 0.05
+batch_size: 16
+train_interval: 1
+log_window_size: 100
 test_nepisodes: 1
 log_step_interval: 100
 log_episode_interval: 10
-enable_double_dqn: True
+use_tensorboard: False
+bootstrap_type: 'double_q'  # learn_q|target_q|double_q

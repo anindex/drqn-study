@@ -13,7 +13,7 @@ class DQNFCModel(Model):
     def __init__(self, **kwargs):
         super(DQNFCModel, self).__init__(**kwargs)
         # build model
-        self.fc1 = nn.Linear(self.input_dims['seq_len'] * np.prod(self.input_dims['state_shape']), self.hidden_dim)
+        self.fc1 = nn.Linear(np.prod(self.input_dims['state_shape']), self.hidden_dim)
         self.fc2 = nn.Linear(self.hidden_dim, self.hidden_dim)
         if self.enable_dueling:  # [0]: V(s); [1,:]: A(s, a)
             self.fc3 = nn.Linear(self.hidden_dim, self.output_dims + 1)
@@ -25,7 +25,7 @@ class DQNFCModel(Model):
         self.print_model()
 
     def forward(self, x):
-        x = x.view(x.size(0), self.input_dims['seq_len'] * np.prod(self.input_dims['state_shape']))
+        x = x.view(x.size(0), np.prod(self.input_dims['state_shape']))
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)

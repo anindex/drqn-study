@@ -13,7 +13,7 @@ class DRQNFCModel(Model):
         super(DRQNFCModel, self).__init__(**kwargs)
         # build model
         self.num_lstm_layer = kwargs.get('num_lstm_layer', 1)
-        self.lstm = nn.LSTM(self.input_dims['seq_len'] * np.prod(self.input_dims['state_shape']),
+        self.lstm = nn.LSTM(np.prod(self.input_dims['state_shape']),
                             hidden_size=self.hidden_dim, num_layers=self.num_lstm_layer, batch_first=True)
         self.fc1 = nn.Linear(self.hidden_dim, self.hidden_dim)
         self.fc2 = nn.Linear(self.hidden_dim, self.output_dims)
@@ -21,7 +21,7 @@ class DRQNFCModel(Model):
         self.print_model()
 
     def forward(self, x, hidden):
-        x = x.view(x.size(0), -1, self.input_dims['seq_len'] * np.prod(self.input_dims['state_shape']))
+        x = x.view(x.size(0), -1, np.prod(self.input_dims['state_shape']))
         x, new_hidden = self.lstm(x, hidden)
         new_hidden = tuple(h.detach() for h in new_hidden)  # detach to avoid inplace modification error in computing grad
         x = F.relu(self.fc1(x))

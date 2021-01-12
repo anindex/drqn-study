@@ -28,7 +28,7 @@ class Env(object):
             self.logger.info("Frames will be saved to: " + self.img_dir)
             self.frame_idx = 0
         self.seed = kwargs.get('seed', 2020) + self.idx  # NOTE: so to give a different seed to each instance
-        self.seq_len = kwargs.get('seq_len', 4)
+        self.stack_len = kwargs.get('stack_len', 4)
         self.solved_criteria = kwargs.get('solved_criteria', 100)  # score
         self.q_threhold = kwargs.get('q_threhold', 100)  # threshold to justify whether soft-divergence has occured
         # POMDP setup
@@ -43,15 +43,15 @@ class Env(object):
         self.exp_action = None
         self.exp_reward = None
         self.exp_terminal1 = None
-        self.seq_state0 = deque(maxlen=self.seq_len)
-        self.seq_state1 = deque(maxlen=self.seq_len)
+        self.seq_state0 = deque(maxlen=self.stack_len)
+        self.seq_state1 = deque(maxlen=self.stack_len)
 
-    def _preprocessStates(self, states):  # NOTE: padding zeros state if size is less than seq_len
+    def _preprocessStates(self, states):  # NOTE: padding zeros state if size is less than stack_len
         if not states:
-            return np.zeros([self.seq_len, *self.state_shape])
+            return np.zeros([self.stack_len, *self.state_shape])
         states = np.array(states)
-        if states.shape[0] < self.seq_len:
-            states = np.append(np.zeros([self.seq_len - states.shape[0], *self.state_shape]), states, axis=0)
+        if states.shape[0] < self.stack_len:
+            states = np.append(np.zeros([self.stack_len - states.shape[0], *self.state_shape]), states, axis=0)
         return states
 
     def _get_experience(self):

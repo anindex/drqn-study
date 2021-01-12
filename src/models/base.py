@@ -39,7 +39,6 @@ class Model(nn.Module):  # TODO: enable_dueling is untested
         self.enable_dueling = kwargs.get('enable_dueling', False)
         self.dueling_type = kwargs.get('dueling_type', 'avg')
         self.input_dims = {
-            'seq_len': kwargs.get('seq_len', 4),
             'state_shape': kwargs.get('state_shape')
         }
         self.output_dims = kwargs.get('action_dim')

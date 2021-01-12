@@ -92,7 +92,7 @@ class DRQNAgent(Agent):
         return td_error, new_current_hidden, new_next_current_hidden, new_target_hidden
 
     def _forward(self, states, hidden):
-        states = torch.from_numpy(states).unsqueeze(0).type(self.dtype).to(self.device)
+        states = torch.from_numpy(states).unsqueeze(0).unsqueeze(1).type(self.dtype).to(self.device)
         q_values, new_hidden = self.model(states, hidden)
         action = self._epsilon_greedy(q_values.detach())
         return action, new_hidden

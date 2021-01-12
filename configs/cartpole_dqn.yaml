@@ -1,6 +1,6 @@
 env:
   game: 'CartPole-v1'
-  seq_len: 1
+  stack_len: 4
   seed: 1314121
   solved_criteria: 195
   q_threhold: 200

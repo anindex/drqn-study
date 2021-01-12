@@ -17,15 +17,13 @@ class AtariEnv(Env):  # low dimensional observations
         self.env = gym.make(self.game)
         self.env.seed(self.seed)  # NOTE: so each env would be different
 
-        # action space setup
+        # state & action space setup
         self.actions = kwargs.get('actions', range(self.action_dim))
-        self.logger.info("Action Space: %s", self.actions)
-
-        # state space setup
         self.scale_factor = kwargs.get('scale_factor', 2)
         self.preprocess_mode = kwargs.get('preprocess_mode', 0)
-        self.logger.info("State Space: %s", self.state_shape)
         self.reset()
+        self.logger.info("Action Space: %s", self.actions)
+        self.logger.info("State Space: %s", self.state_shape)
 
         # atari POMDP
         self.pomdp_mask = np.random.uniform(size=self.state_shape) < self.pomdp_prob

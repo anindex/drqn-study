@@ -13,10 +13,10 @@ class DQNCNNModel(Model):
     def __init__(self, **kwargs):
         super(DQNCNNModel, self).__init__(**kwargs)
         self.kernel_num = kwargs.get('kernel_num', 32)
-        self.conv1 = nn.Conv2d(self.input_dims['seq_len'], self.kernel_num, kernel_size=3, stride=2)
+        self.conv1 = nn.Conv2d(self.input_dims['state_shape'][0], self.kernel_num, kernel_size=3, stride=2)  # assuming grayscale
         self.conv2 = nn.Conv2d(self.kernel_num, self.kernel_num, kernel_size=3, stride=2, padding=1)
         self.conv3 = nn.Conv2d(self.kernel_num, self.kernel_num, kernel_size=3, stride=2, padding=1)
-        self.fc4 = nn.Linear(32 * 5 * 5, self.hidden_dim)
+        self.fc4 = nn.Linear(self.kernel_num * 10 * 10, self.hidden_dim)
         if self.enable_dueling:  # [0]: V(s); [1,:]: A(s, a)
             self.fc5 = nn.Linear(self.hidden_dim, self.output_dims + 1)
             self.v_idx = torch.LongTensor(self.output_dims).fill_(0).unsqueeze(0)
@@ -27,7 +27,7 @@ class DQNCNNModel(Model):
         self.print_model()
 
     def forward(self, x):
-        x = x.view(x.size(0) * self.input_dims['seq_len'], *self.input_dims['state_shape'])  # batch_size * timestep, C, H, W
+        x = x.view(x.size(0), *self.input_dims['state_shape'])  # batch_size, C * stack_len, H, W
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
