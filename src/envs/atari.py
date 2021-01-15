@@ -26,7 +26,7 @@ class AtariEnv(Env):  # low dimensional observations
         self.logger.info("State Space: %s", self.state_shape)
 
         # atari POMDP
-        self.pomdp_mask = np.random.uniform(size=self.state_shape) < self.pomdp_prob
+        self.pomdp_mask = np.random.uniform(size=(1, *self.state_shape[1:])) < self.pomdp_prob
 
     def render(self):
         if self.mode == 2:

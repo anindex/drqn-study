@@ -34,11 +34,11 @@ def downsample(img):
 
 
 def crop_atari(img):
-    return img[25:-25]
+    return img[10:]
 
 
 def preprocessAtari(img):
-    img = to_grayscale(downsample(crop_atari(img)))
+    img = downsample(crop_atari(img))
     return img.reshape((-1, img.shape[0], img.shape[1]))
 
 
@@ -108,3 +108,56 @@ def plot_grad_flow(named_parameters):
     plt.legend([Line2D([0], [0], color="c", lw=4),
                 Line2D([0], [0], color="b", lw=4),
                 Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
+
+
+def plot_lstm_grad_over_steps(x, grad_mean_ih, grad_mean_hh, grad_max_ih, grad_max_hh):
+    plt.subplot(2, 2, 1)
+    plt.plot(x, grad_mean_ih)
+    plt.title('Mean LSTM grad magnitude ih')
+    plt.xlabel('Steps')
+    plt.subplot(2, 2, 2)
+    plt.plot(x, grad_mean_hh)
+    plt.title('Mean LSTM grad magnitude hh')
+    plt.xlabel('Steps')
+    plt.subplot(2, 2, 3)
+    plt.plot(x, grad_max_ih)
+    plt.title('Max LSTM grad magnitude ih')
+    plt.xlabel('Steps')
+    plt.subplot(2, 2, 4)
+    plt.plot(x, grad_max_hh)
+    plt.title('Max LSTM grad magnitude hh')
+    plt.xlabel('Steps')
+    plt.show()
+
+
+def plot_max_abs_q(x, max_abs_q_log):
+    # max abs q
+    plt.grid(True)
+    max_abs_q_log = np.array(max_abs_q_log)
+    max_abs_q_log = max_abs_q_log.max(axis=0).squeeze()
+    plt.title('Max Absolute Q over steps')
+    plt.ylabel('Max abs(Q)')
+    plt.xlabel('Steps')
+    plt.plot(x, max_abs_q_log)
+    plt.show()
+    plt.title('Histogram of log scale max abs(Q)')
+    plt.ylabel('Counts')
+    plt.xlabel('max abs(Q)')
+    plt.hist(max_abs_q_log)
+    plt.show()
+
+
+def plot_holistic_measure(x, y, title='', xlabel='', ylabel=''):
+    # tderr
+    y = np.array(y)
+    y_mean, y_var = y.mean(axis=0), y.var(axis=0)
+    plt.plot(x, y_mean)
+    plt.fill_between(x, y_mean - y_var, y_mean + y_var)
+    plt.title(title)
+    plt.ylabel(xlabel)
+    plt.xlabel(ylabel)
+    plt.show()
+
+
+def save_data(d, path):
+    np.save(path, d)

@@ -1,17 +1,17 @@
 env:
-  game: 'Breakout-v0'
+  game: 'SpaceInvaders-v0'
   stack_len: 1
   seed: 1314121
-  solved_criteria: 30
-  q_threhold: 100
+  solved_criteria: 4000
+  q_threhold: 4000
   pomdp: True
   pomdp_type: 'flickering'  # flickering|delete_dim
   # pomdp_mask: [1, 0, 1, 0]  # this mask is chosen depended on the hiding dimensions and the observation shape of the env (i.e. 0)
-  pomdp_prob: 0.7
+  pomdp_prob: 0.8
   mode: 0
 
 model:
-  model_file: 'breakout_dqncnn.pt'
+  model_file: 'spaceinvader_drqncnn.pt'
   kernel_num: 16
   hidden_dim: 32
   enable_dueling: False
@@ -20,7 +20,7 @@ model:
 
 memory:
   size: 1000
-  max_episode_length: 0
+  max_episode_length: 0  # no limit
 
 env_type: 'atari'
 model_type: 'drqn_cnn'
@@ -36,7 +36,7 @@ solved_stop: True
 random_eps: 10
 drqn_n_step: 3
 steps: 100000
-learn_start: 3000
+learn_start: 4000
 gamma: 0.99
 # clip_grad: 1.0
 lr: 0.0001

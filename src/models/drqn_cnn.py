@@ -16,7 +16,7 @@ class DRQNCNNModel(Model):
         self.conv1 = nn.Conv2d(self.input_dims['state_shape'][0], self.kernel_num, kernel_size=3, stride=2)
         self.conv2 = nn.Conv2d(self.kernel_num, self.kernel_num, kernel_size=3, stride=2, padding=1)
         self.conv3 = nn.Conv2d(self.kernel_num, self.kernel_num, kernel_size=3, stride=2, padding=1)
-        self.lstm = nn.LSTM(self.kernel_num * 10 * 10, hidden_size=self.hidden_dim, num_layers=self.num_lstm_layer, batch_first=True)
+        self.lstm = nn.LSTM(self.kernel_num * 13 * 10, hidden_size=self.hidden_dim, num_layers=self.num_lstm_layer, batch_first=True)
         self.fc1 = nn.Linear(self.hidden_dim, self.output_dims)
         self._reset()
         self.print_model()

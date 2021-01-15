@@ -1,12 +1,11 @@
 import yaml
 import argparse
 import logging
-import numpy as np
-import matplotlib.pyplot as plt
 from datetime import datetime
 from os.path import join, dirname, abspath
 
 from src.utils.factory import EnvDict, ModelDict, MemoryDict, AgentDict
+from src.utils.helpers import plot_lstm_grad_over_steps, plot_max_abs_q, plot_holistic_measure, save_data
 
 logging.basicConfig(level=logging.INFO)
 
@@ -56,71 +55,27 @@ if params['mode'] == 'train':
             if step_log is None or eps_log is None:
                 step_log = agent.step_log
                 eps_log = agent.eps_log
+    # prune out data
+    min_len = min(len(total_avg_score_log[i]) for i in range(args.run))
+    total_avg_score_log = [log[:min_len] for log in total_avg_score_log]
+    run_avg_score_log = [log[:min_len] for log in run_avg_score_log]
+    eps_log = eps_log[:min_len]
+    data = {
+        'step_log': step_log,
+        'eps_log': eps_log,
+        'max_abs_q_log': max_abs_q_log,
+        'tderr_log': tderr_log,
+        'total_avg_score_log': total_avg_score_log,
+        'run_avg_score_log': run_avg_score_log
+    }
+    save_data(data, join(ROOT_DIR, 'logs', 'data', log_folder_name))
     if args.plot:
         # start plotting
         if 'log_lstm_grad' in params and params['log_lstm_grad']:
-            plt.subplot(2, 2, 1)
-            plt.plot(step_log, agent.grad_mean_ih)
-            plt.title('Mean LSTM grad magnitude ih')
-            plt.xlabel('Steps')
-            plt.subplot(2, 2, 2)
-            plt.plot(step_log, agent.grad_mean_hh)
-            plt.title('Mean LSTM grad magnitude hh')
-            plt.xlabel('Steps')
-            plt.subplot(2, 2, 3)
-            plt.plot(step_log, agent.grad_max_ih)
-            plt.title('Max LSTM grad magnitude ih')
-            plt.xlabel('Steps')
-            plt.subplot(2, 2, 4)
-            plt.plot(step_log, agent.grad_max_hh)
-            plt.title('Max LSTM grad magnitude hh')
-            plt.xlabel('Steps')
-            plt.show()
-        # max abs q
-        plt.grid(True)
-        max_abs_q_log = np.array(max_abs_q_log)
-        max_abs_q_log = max_abs_q_log.max(axis=0).squeeze()
-        plt.title('Max Absolute Q over steps')
-        plt.ylabel('Max abs(Q)')
-        plt.xlabel('Steps')
-        plt.plot(step_log, max_abs_q_log)
-        plt.show()
-        plt.title('Histogram of log scale max abs(Q)')
-        plt.ylabel('Counts')
-        plt.xlabel('max abs(Q)')
-        plt.hist(max_abs_q_log)
-        plt.show()
-        # tderr
-        tderr_log = np.array(tderr_log)
-        tderr_mean, tderr_var = tderr_log.mean(axis=0), tderr_log.var(axis=0)
-        plt.plot(step_log, tderr_mean)
-        plt.fill_between(step_log, tderr_mean - tderr_var, tderr_mean + tderr_var)
-        plt.title('TD error over steps')
-        plt.ylabel('TD error')
-        plt.xlabel('Steps')
-        plt.show()
-        # total avg score
-        min_len = min(len(total_avg_score_log[i]) for i in range(args.run))
-        total_avg_score_log = [log[:min_len] for log in total_avg_score_log]
-        eps_log = eps_log[:min_len]
-        total_avg_score_log = np.array(total_avg_score_log)
-        total_avg_score_log_mean, total_avg_score_log_var = total_avg_score_log.mean(axis=0), total_avg_score_log.var(axis=0)
-        plt.plot(eps_log, total_avg_score_log_mean)
-        plt.fill_between(eps_log, total_avg_score_log_mean - total_avg_score_log_var, total_avg_score_log_mean + total_avg_score_log_var)
-        plt.title('Total average scores over episodes')
-        plt.ylabel('Scores')
-        plt.xlabel('Episodes')
-        plt.show()
-        # tderr
-        run_avg_score_log = [log[:min_len] for log in run_avg_score_log]
-        run_avg_score_log = np.array(run_avg_score_log)
-        run_avg_score_log_mean, run_avg_score_log_var = run_avg_score_log.mean(axis=0), run_avg_score_log.var(axis=0)
-        plt.plot(eps_log, run_avg_score_log_mean)
-        plt.fill_between(eps_log, run_avg_score_log_mean - run_avg_score_log_var, run_avg_score_log_mean + run_avg_score_log_var)
-        plt.title('Running average scores of window size %d over episodes' % agent.log_window_size)
-        plt.ylabel('Scores')
-        plt.xlabel('Episodes')
-        plt.show()
-
+            plot_lstm_grad_over_steps(step_log, agent.grad_mean_ih, agent.grad_mean_hh, agent.grad_mean_ih, agent.grad_max_ih, agent.grad_max_hh)
+        plot_max_abs_q(step_log, max_abs_q_log)
+        plot_holistic_measure(step_log, tderr_log, title='TD Error over steps', xlabel='Steps', ylabel='TD Error')
+        plot_holistic_measure(eps_log, total_avg_score_log, title='Total average scores over episodes', xlabel='Episodes', ylabel='Scores')
+        plot_holistic_measure(eps_log, run_avg_score_log, title='Running average scores of window size %d over episodes' % agent.log_window_size, xlabel='Episodes', ylabel='Scores')
 elif params['mode'] == 'test':
     agent.test_model()

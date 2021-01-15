@@ -16,7 +16,7 @@ class DQNCNNModel(Model):
         self.conv1 = nn.Conv2d(self.input_dims['state_shape'][0], self.kernel_num, kernel_size=3, stride=2)  # assuming grayscale
         self.conv2 = nn.Conv2d(self.kernel_num, self.kernel_num, kernel_size=3, stride=2, padding=1)
         self.conv3 = nn.Conv2d(self.kernel_num, self.kernel_num, kernel_size=3, stride=2, padding=1)
-        self.fc4 = nn.Linear(self.kernel_num * 10 * 10, self.hidden_dim)
+        self.fc4 = nn.Linear(self.kernel_num * 13 * 10, self.hidden_dim)
         if self.enable_dueling:  # [0]: V(s); [1,:]: A(s, a)
             self.fc5 = nn.Linear(self.hidden_dim, self.output_dims + 1)
             self.v_idx = torch.LongTensor(self.output_dims).fill_(0).unsqueeze(0)

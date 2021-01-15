@@ -12,7 +12,7 @@ class EpisodicMemory(Memory):
         super(EpisodicMemory, self).__init__(size)
         # Max number of transitions possible will be the memory capacity, could be much less
         self.max_episode_length = max_episode_length
-        self.num_episodes = size // max_episode_length
+        self.num_episodes = size // max_episode_length if max_episode_length > 0 else size
         self.memory = deque(maxlen=self.num_episodes)
         self.reset()
 
