@@ -4,24 +4,33 @@ from __future__ import print_function
 import random
 from collections import deque
 
-from src.replay.base import Memory, Experience, sample_batch_indexes
+from src.replay.base import Memory, sample_batch_indexes
 
 
 class EpisodicMemory(Memory):
-    def __init__(self, size, max_episode_length=0):
-        super(EpisodicMemory, self).__init__(size)
+    def __init__(self, **kwargs):
+        super(EpisodicMemory, self).__init__(**kwargs)
         # Max number of transitions possible will be the memory capacity, could be much less
-        self.max_episode_length = max_episode_length
-        self.num_episodes = size // max_episode_length if max_episode_length > 0 else size
+        self.max_episode_length = kwargs.get('max_episode_length', 0)
+        self.num_episodes = self.size // self.max_episode_length if self.max_episode_length > 0 else self.size
         self.memory = deque(maxlen=self.num_episodes)
         self.reset()
 
-    def append(self, s0, a, r, s1, t1):
-        self.memory[self.idx].append(Experience(s0, a, r, s1, t1))
+    def add(self, experience):
+        self.memory[self.idx].append(experience)
         # Terminal states are saved with actions as None, so switch to next episode
-        if t1:
+        if experience.t1:
             self.memory.append([])
             self.idx = min(self.idx + 1, self.num_episodes - 1)
+
+    def add_episode(self, episode):
+        if not self.memory[self.idx] or not self.memory[self.idx][-1].t1:
+            self.memory.pop()
+            self.idx = min(self.idx + 1, self.num_episodes - 1)
+        else:
+            self.idx = min(self.idx + 2, self.num_episodes - 1)
+        self.memory.append(episode)
+        self.memory.append([])
 
     # Samples random trajectory
     def sample(self, idx=None):
@@ -43,7 +52,7 @@ class EpisodicMemory(Memory):
             return batch
         minimum_size = min(len(trajectory) for trajectory in batch)
         batch = [trajectory[:minimum_size] for trajectory in batch]  # Truncate trajectories
-        return list(map(list, zip(*batch)))  # Transpose so that timesteps are packed together
+        return batch
 
     def __len__(self):
         return sum(len(episode) for episode in self.memory)

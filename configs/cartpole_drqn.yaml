@@ -5,7 +5,7 @@ env:
   solved_criteria: 195
   q_threhold: 200
   pomdp: True
-  pomdp_type: 'delete_dim'  # flickering|delete_dim
+  pomdp_type: 'flickering'  # flickering|delete_dim
   pomdp_mask: [1, 0, 1, 0]  # this mask is chosen depended on the hiding dimensions and the observation shape of the env (i.e. 0)
   pomdp_prob: 0.8
   mode: 0
@@ -20,14 +20,15 @@ model:
 
 memory:
   size: 100000
-  max_episode_length: 200
+  a: 0.6
+  b: 0.4
 
 env_type: 'gym'
 model_type: 'drqn_fc'
-memory_type: 'episodic'
+memory_type: 'random'
 agent_type: 'drqn'
 mode: 'train'  # train|test
-value_criteria: 'MSELoss'
+value_criteria: 'mse_loss'
 optimizer: 'Adam'
 train_visualize: False
 retrain: True
@@ -35,7 +36,7 @@ solved_stop: True
 
 random_eps: 10
 drqn_n_step: 3
-steps: 100000
+steps: 70000
 learn_start: 1000
 gamma: 0.99
 # clip_grad: 1.0
@@ -53,4 +54,5 @@ test_nepisodes: 1
 log_step_interval: 100
 log_episode_interval: 10
 bootstrap_type: 'double_q'  # learn_q|target_q|double_q
+use_tensorboard: False
 log_lstm_grad: True

@@ -1,6 +1,6 @@
 env:
   game: 'Breakout-v0'
-  stack_len: 4
+  stack_len: 2
   seed: 1314121
   solved_criteria: 30
   q_threhold: 100
@@ -19,14 +19,16 @@ model:
   dtype: 'torch.float32'
 
 memory:
-  size: 1000
+  size: 100000
+  a: 0.6
+  b: 0.4
 
 env_type: 'atari'
 model_type: 'dqn_cnn'
 memory_type: 'random'
 agent_type: 'dqn'
 mode: 'train'  # train|test
-value_criteria: 'MSELoss'
+value_criteria: 'mse_loss'
 optimizer: 'Adam'
 train_visualize: False
 retrain: True
@@ -34,14 +36,14 @@ solved_stop: True
 
 random_eps: 10
 steps: 100000
-learn_start: 3000
+learn_start: 2000
 gamma: 0.99
 # clip_grad: 1.0
-lr: 0.0001
+lr: 0.001
 lr_decay: False
 eps_start: 0.9
-eps_decay: 70000
-eps_end: 0.1
+eps_decay: 100000
+eps_end: 0.01
 prog_freq: 1000
 target_model_update: 0.05
 batch_size: 16

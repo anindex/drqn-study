@@ -7,8 +7,7 @@ import random
 from collections import deque
 import torch
 from os.path import exists
-from torch.nn import MSELoss  # noqa
-from torch.nn.functional import smooth_l1_loss  # noqa
+from torch.nn.functional import smooth_l1_loss, mse_loss  # noqa
 from torch.optim import Adam, Adagrad  # noqa
 from tensorboardX import SummaryWriter
 
@@ -37,6 +36,7 @@ class Agent(object):
         self.model = None
         # memory
         self.memory_prototype = memory_prototype
+        self.memory_type = kwargs.get('memory_type', 'random')
         self.memory_params = kwargs.get('memory')
         self.memory = None
         random.seed(self.env_params['seed'])
@@ -60,7 +60,7 @@ class Agent(object):
         self._reset_training_loggings()
         # agent_params
         # criteria and optimizer
-        self.value_criteria = eval(kwargs.get('value_criteria', 'MSELoss'))()
+        self.value_criteria = eval(kwargs.get('value_criteria', 'mse_loss'))
         self.optimizer_class = eval(kwargs.get('optimizer', 'Adam'))
         # hyperparameters
         self.steps = kwargs.get('steps', 100000)
@@ -118,7 +118,7 @@ class Agent(object):
         self.window_scores = deque(maxlen=self.log_window_size)
         self.window_max_abs_q = deque(maxlen=self.log_window_size)
         self.max_abs_q_log = [0]  # per step
-        self.tderr_log = [0]  # per step
+        self.loss_log = [0]  # per step
         self.total_avg_score_log = [0]  # per eps
         self.run_avg_score_log = [0]  # per eps
         self.step_log = [0]
@@ -145,10 +145,21 @@ class Agent(object):
         # experience & states
         self._reset_experiences()
 
-    def _store_experience(self, experience):
+    def _store_episode(self, episode):
+        if self.memory_type == 'episodic':
+            self.memory.add_episode(episode)
+        else:
+            self.logger.warn('Only episodic memory can add episode!')
+
+    def _store_experience(self, experience, error=0.):
         # Store most recent experience in memory.
         if self.step % self.memory_interval == 0:
-            self.memory.append(experience.s0, experience.a, experience.r, experience.s1, experience.t1)
+            if self.memory_type == 'episodic':
+                self.memory.add(experience)
+            elif self.memory_type == 'random':
+                self.memory.add(experience, error)
+            else:
+                raise ValueError('Memory type %s is unsupported!' % self.memory_type)
 
     # Hard update every `target_model_update` steps.
     def _update_target_model_hard(self):
@@ -175,7 +186,7 @@ class Agent(object):
         return (torch.zeros(self.model.num_lstm_layer, batch_size, self.model.hidden_dim).type(self.dtype).to(self.device),
                 torch.zeros(self.model.num_lstm_layer, batch_size, self.model.hidden_dim).type(self.dtype).to(self.device))
 
-    def _get_q_update(self, experiences):
+    def _get_loss(self, experiences):
         raise NotImplementedError()
 
     def _forward(self, states):

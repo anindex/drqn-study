@@ -13,7 +13,7 @@ class DQNAgent(Agent):
         super(DQNAgent, self).__init__(env_prototype, model_prototype, memory_prototype, **kwargs)
         self.logger.info('<===================================> DQNAgent')
 
-    def _get_q_update(self, experiences):
+    def _get_loss(self, experiences, logging=True):
         batch_size = len(experiences)
         s0_batch = torch.from_numpy(np.array([experiences[i].s0 for i in range(batch_size)])).type(self.dtype).to(self.device)
         a_batch = torch.from_numpy(np.array([experiences[i].a for i in range(batch_size)])).long().to(self.device)
@@ -39,13 +39,14 @@ class DQNAgent(Agent):
         # Set discounted reward to zero for all states that were terminal.
         next_max_q_values = (next_max_q_values * t1_batch.unsqueeze(1)).squeeze()
         expected_q_values = (r_batch + self.gamma * next_max_q_values).squeeze()
-        td_error = self.value_criteria(current_q_values, expected_q_values)
-        if self.step != 0 and self.step % self.log_step_interval == 0:  # logging
+        loss = self.value_criteria(current_q_values, expected_q_values)
+        error = (current_q_values - next_max_q_values).tolist()
+        if logging and self.step != 0 and self.step % self.log_step_interval == 0:  # logging
             self.window_max_abs_q.append(np.mean(np.abs(next_max_q_values.tolist())))
             self.max_abs_q_log.append(np.max(self.window_max_abs_q))
-            self.tderr_log.append(td_error.item())
+            self.loss_log.append(loss.item())
             self.step_log.append(self.step)
-        return td_error
+        return loss, error
 
     def _forward(self, states):
         states = torch.from_numpy(states).unsqueeze(0).type(self.dtype).to(self.device)
@@ -53,14 +54,21 @@ class DQNAgent(Agent):
         action = self._epsilon_greedy(q_values)
         return action
 
-    def _backward(self, experiences=None):
+    def _backward(self, experiences=None, idxs=None, is_weights=None):
         # Train the network on a single stochastic batch.
+        error = 0.
         if self.step % self.train_interval == 0:
             if experiences is None:
-                experiences = self.memory.sample_batch(self.batch_size)
-            td_error = self._get_q_update(experiences)
+                experiences, idxs, is_weights = self.memory.sample_batch(self.batch_size)
+            loss, error = self._get_loss(experiences)
+            if idxs is not None:  # update priorities
+                error = np.abs(error)  # abs error as priorities
+                for i in range(self.batch_size):
+                    self.memory.update(idxs[i], error[i])
+            is_weights = np.ones(len(experiences)) if is_weights is None else is_weights
+            loss = (torch.from_numpy(is_weights).type(self.dtype).to(self.device) * loss).mean()  # apply importance weights
             self.optimizer.zero_grad()
-            td_error.backward()
+            loss.backward()
             for param in self.model.parameters():
                 param.grad.data.clamp_(-self.clip_grad, self.clip_grad)
             self.optimizer.step()
@@ -72,6 +80,7 @@ class DQNAgent(Agent):
             self._update_target_model_hard()    # Hard update every `target_model_update` steps.
         if self.target_model_update < 1.:
             self._update_target_model_soft()    # Soft update with `(1 - target_model_update) * old + target_model_update * new`.
+        return error
 
     def _random_initialization(self):
         self.logger.info('<===================================> Random policy initialization for %d eps' % self.random_eps)
@@ -80,7 +89,8 @@ class DQNAgent(Agent):
             while not self.experience.t1:
                 action = self.env.sample_random_action()
                 self.experience = self.env.step(action)
-                self._backward([self.experience])
+                error = self._backward([self.experience])
+                self._store_experience(self.experience, abs(error))
 
     def fit_model(self):
         self._init_model(training=True)
@@ -99,7 +109,8 @@ class DQNAgent(Agent):
         while self.step < self.steps:
             action = self._forward(self.experience.s1)
             self.experience = self.env.step(action)
-            self._store_experience(self.experience)
+            _, error = self._get_loss([self.experience], logging=False)  # compute priority
+            self._store_experience(self.experience, abs(error))
             self._visualize(visualize=self.train_visualize)
             if self.step > self.learn_start:
                 self._backward()

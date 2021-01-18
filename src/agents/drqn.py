@@ -4,6 +4,7 @@ from __future__ import print_function
 import time
 import torch
 import numpy as np
+from collections import deque
 
 from src.agents.base import Agent, adjust_learning_rate
 
@@ -51,7 +52,7 @@ class DRQNAgent(Agent):
         t1_eps_batch = np.array([[float(not episodes[i][j].t1) for j in range(eps_len)] for i in range(batch_size)])
         return s0_eps_batch, a_eps_batch, r_eps_batch, s1_eps_batch, t1_eps_batch
 
-    def _get_n_step_q_update(self, s0_batch, a_batch, r_batch, s1_batch, t1_batch, current_hidden, next_current_hidden, target_hidden):
+    def _get_loss(self, s0_batch, a_batch, r_batch, s1_batch, t1_batch, current_hidden, next_current_hidden, target_hidden, logging=True):
         s0_batch = torch.from_numpy(s0_batch).type(self.dtype).to(self.device)
         a_batch = torch.from_numpy(a_batch[:, 0]).long().to(self.device)  # first action in the window
         r_batch = torch.from_numpy(r_batch.sum(axis=1)).type(self.dtype).to(self.device)  # accumulate rewards over temporal dim
@@ -83,13 +84,14 @@ class DRQNAgent(Agent):
         # Set discounted reward to zero for all states that were terminal.
         next_max_q_values = (next_max_q_values * t1_batch.unsqueeze(1)).squeeze()
         expected_q_values = (r_batch + self.gamma * next_max_q_values).squeeze()
-        td_error = self.value_criteria(current_q_values, expected_q_values)
-        if self.step != 0 and self.step % self.log_step_interval == 0:  # logging
+        loss = self.value_criteria(current_q_values, expected_q_values)
+        error = (current_q_values - next_max_q_values).tolist()
+        if logging and self.step != 0 and self.step % self.log_step_interval == 0:  # logging
             self.window_max_abs_q.append(np.mean(np.abs(next_max_q_values.tolist())))
             self.max_abs_q_log.append(np.max(self.window_max_abs_q))
-            self.tderr_log.append(td_error.item())
+            self.loss_log.append(loss.item())
             self.step_log.append(self.step)
-        return td_error, new_current_hidden, new_next_current_hidden, new_target_hidden
+        return loss, error, new_current_hidden, new_next_current_hidden, new_target_hidden
 
     def _forward(self, states, hidden):
         states = torch.from_numpy(states).unsqueeze(0).unsqueeze(1).type(self.dtype).to(self.device)
@@ -97,31 +99,52 @@ class DRQNAgent(Agent):
         action = self._epsilon_greedy(q_values.detach())
         return action, new_hidden
 
-    def _backward(self, episodes=None):
+    def _backward(self, episodes=None, idxs=None, is_weights=None):
         # Train the network on a single stochastic batch.
         if self.step % self.train_interval == 0:
-            if episodes is None:
-                episodes = self.memory.sample_batch(self.batch_size)
-            batch_size = len(episodes)
-            s0_eps_batch, a_eps_batch, r_eps_batch, s1_eps_batch, t1_eps_batch = self._process_episode_batch(episodes)
             # reset hidden every training
+            batch_size = len(episodes) if episodes is not None else self.batch_size
             current_hidden = self._create_zero_lstm_hidden(batch_size=batch_size)
             next_current_hidden = self._create_zero_lstm_hidden(batch_size=batch_size)
             target_hidden = self._create_zero_lstm_hidden(batch_size=batch_size)
-            for i in range(0, len(episodes[0]), self.drqn_n_step):
-                td_error, current_hidden, next_current_hidden, target_hidden = self._get_n_step_q_update(s0_eps_batch[:, i:i + self.drqn_n_step],
-                                                                                                         a_eps_batch[:, i:i + self.drqn_n_step],
-                                                                                                         r_eps_batch[:, i:i + self.drqn_n_step],
-                                                                                                         s1_eps_batch[:, i:i + self.drqn_n_step],
-                                                                                                         t1_eps_batch[:, i:i + self.drqn_n_step],
-                                                                                                         current_hidden, next_current_hidden, target_hidden)
+            if self.memory_type == 'episodic':
+                if episodes is None:
+                    episodes = self.memory.sample_batch(self.batch_size)
+                s0_eps_batch, a_eps_batch, r_eps_batch, s1_eps_batch, t1_eps_batch = self._process_episode_batch(episodes)
+                for i in range(0, len(episodes[0]), self.drqn_n_step):
+                    loss, error, current_hidden, next_current_hidden, target_hidden = self._get_loss(s0_eps_batch[:, i:i + self.drqn_n_step],
+                                                                                                     a_eps_batch[:, i:i + self.drqn_n_step],
+                                                                                                     r_eps_batch[:, i:i + self.drqn_n_step],
+                                                                                                     s1_eps_batch[:, i:i + self.drqn_n_step],
+                                                                                                     t1_eps_batch[:, i:i + self.drqn_n_step],
+                                                                                                     current_hidden, next_current_hidden, target_hidden)
+                    self.optimizer.zero_grad()
+                    loss.mean().backward(retain_graph=True)
+            elif self.memory_type == 'random':
+                if episodes is None:
+                    episodes, idxs, weights = self.memory.sample_batch(self.batch_size)
+                s0_eps_batch, a_eps_batch, r_eps_batch, s1_eps_batch, t1_eps_batch = self._process_episode_batch(episodes)
+                loss, error, current_hidden, next_current_hidden, target_hidden = self._get_loss(s0_eps_batch,
+                                                                                                 a_eps_batch,
+                                                                                                 r_eps_batch,
+                                                                                                 s1_eps_batch,
+                                                                                                 t1_eps_batch,
+                                                                                                 current_hidden, next_current_hidden, target_hidden)
+                if idxs is not None:  # update priorities
+                    error = np.abs(error)  # abs error as priorities
+                    for i in range(self.batch_size):
+                        self.memory.update(idxs[i], error[i])
+                is_weights = np.ones(batch_size) if is_weights is None else is_weights
+                loss = (torch.from_numpy(is_weights).type(self.dtype).to(self.device) * loss).mean()
                 self.optimizer.zero_grad()
-                td_error.backward(retain_graph=True)
-                if self.log_lstm_grad and self.step != 0 and self.step % self.log_step_interval == 0:
-                    self._log_lstm_grad(self.model.named_parameters())
-                for param in self.model.parameters():
-                    param.grad.data.clamp_(-self.clip_grad, self.clip_grad)
-                self.optimizer.step()
+                loss.backward()
+            else:
+                raise ValueError('Memory type %s is not supported!' % self.memory_type)
+            for param in self.model.parameters():
+                param.grad.data.clamp_(-self.clip_grad, self.clip_grad)
+            self.optimizer.step()
+        if self.log_lstm_grad and self.step != 0 and self.step % self.log_step_interval == 0:
+            self._log_lstm_grad(self.model.named_parameters())
         # adjust learning rate if enabled
         if self.lr_decay:
             self.lr_adjusted = max(self.lr * (self.steps - self.step) / self.steps, 1e-32)
@@ -130,6 +153,7 @@ class DRQNAgent(Agent):
             self._update_target_model_hard()    # Hard update every `target_model_update` steps.
         if self.target_model_update < 1.:
             self._update_target_model_soft()    # Soft update with `(1 - target_model_update) * old + target_model_update * new`.
+        return error
 
     def _random_initialization(self):
         self.logger.info('<===================================> Random policy initialization for %d eps' % self.random_eps)
@@ -140,7 +164,16 @@ class DRQNAgent(Agent):
                 action = self.env.sample_random_action()
                 self.experience = self.env.step(action)
                 episode.append(self.experience)
-            self._backward([episode])
+            if self.memory_type == 'episodic':
+                self._store_episode(episode)
+                self._backward([episode])
+            elif self.memory_type == 'random':
+                for i in range(len(episode) - self.drqn_n_step + 1):
+                    n_experiences = episode[i:i + self.drqn_n_step]
+                    error = self._backward([n_experiences])
+                    self._store_experience(n_experiences, abs(error))
+            else:
+                raise ValueError('Memory type %s is not supported!' % self.memory_type)
 
     def fit_model(self):
         self._init_model(training=True)
@@ -155,12 +188,30 @@ class DRQNAgent(Agent):
         self._random_initialization()
         episode_steps, episode_reward = 0, 0
         self.experience = self.env.reset()
+        self.episode = deque(maxlen=self.drqn_n_step)
         hidden = self._create_zero_lstm_hidden()
         self.logger.info('<===================================> Training ...')
         while self.step < self.steps:
             action, hidden = self._forward(self.experience.s1, hidden)
             self.experience = self.env.step(action)
-            self._store_experience(self.experience)
+            self.episode.append(self.experience)
+            if self.memory_type == 'episodic':
+                self._store_experience(self.experience)
+            elif self.memory_type == 'random':
+                if len(self.episode) == self.drqn_n_step:
+                    current_hidden = self._create_zero_lstm_hidden()
+                    next_current_hidden = self._create_zero_lstm_hidden()
+                    target_hidden = self._create_zero_lstm_hidden()
+                    s0_eps_batch, a_eps_batch, r_eps_batch, s1_eps_batch, t1_eps_batch = self._process_episode_batch([self.episode])
+                    _, error, _, _, _ = self._get_loss(s0_eps_batch,
+                                                       a_eps_batch,
+                                                       r_eps_batch,
+                                                       s1_eps_batch,
+                                                       t1_eps_batch,
+                                                       current_hidden, next_current_hidden, target_hidden, logging=False)  # compute priority
+                    self._store_experience(list(self.episode), abs(error))  # make a copy of current nstep window
+            else:
+                raise ValueError('Memory type %s is not supported!' % self.memory_type)
             self._visualize(visualize=self.train_visualize)
             if self.step > self.learn_start:
                 self._backward()
@@ -169,6 +220,7 @@ class DRQNAgent(Agent):
             self.step += 1
             if self.experience.t1:
                 self.experience = self.env.reset()
+                self.episode.clear()
                 self.window_scores.append(episode_reward)
                 run_avg_reward = np.mean(self.window_scores)
                 total_reward += episode_reward

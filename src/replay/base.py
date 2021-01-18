@@ -39,8 +39,8 @@ def zeroed_observation(observation):
 
 
 class Memory(object):
-    def __init__(self, size=0):
-        self.size = size
+    def __init__(self, **kwargs):
+        self.size = kwargs.get('size', 100000)
 
     def sample(self):
         raise NotImplementedError()
@@ -48,7 +48,7 @@ class Memory(object):
     def sample_batch(self):
         raise NotImplementedError()
 
-    def append(self, o0, a, r, o1, t1):
+    def add(self, experience):
         raise NotImplementedError()
 
     def get_config(self):

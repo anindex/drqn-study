@@ -38,7 +38,7 @@ agent = AgentDict[params['agent_type']](env_prototype=env_prototype,
 
 bins = [i ** 10 for i in range(7)]
 max_abs_q_log = []  # per step
-tderr_log = []  # per step
+loss_log = []  # per step
 total_avg_score_log = []  # per eps
 run_avg_score_log = []  # per eps
 step_log = None
@@ -49,7 +49,7 @@ if params['mode'] == 'train':
         agent.fit_model()
         if args.plot:
             max_abs_q_log.append(agent.max_abs_q_log)
-            tderr_log.append(agent.tderr_log)
+            loss_log.append(agent.loss_log)
             total_avg_score_log.append(agent.total_avg_score_log)
             run_avg_score_log.append(agent.run_avg_score_log)
             if step_log is None or eps_log is None:
@@ -64,7 +64,7 @@ if params['mode'] == 'train':
         'step_log': step_log,
         'eps_log': eps_log,
         'max_abs_q_log': max_abs_q_log,
-        'tderr_log': tderr_log,
+        'loss_log': loss_log,
         'total_avg_score_log': total_avg_score_log,
         'run_avg_score_log': run_avg_score_log
     }
@@ -72,9 +72,9 @@ if params['mode'] == 'train':
     if args.plot:
         # start plotting
         if 'log_lstm_grad' in params and params['log_lstm_grad']:
-            plot_lstm_grad_over_steps(step_log, agent.grad_mean_ih, agent.grad_mean_hh, agent.grad_mean_ih, agent.grad_max_ih, agent.grad_max_hh)
+            plot_lstm_grad_over_steps(step_log, agent.grad_mean_ih, agent.grad_mean_hh, agent.grad_max_ih, agent.grad_max_hh)
         plot_max_abs_q(step_log, max_abs_q_log)
-        plot_holistic_measure(step_log, tderr_log, title='TD Error over steps', xlabel='Steps', ylabel='TD Error')
+        plot_holistic_measure(step_log, loss_log, title='Loss over steps', xlabel='Steps', ylabel='Loss')
         plot_holistic_measure(eps_log, total_avg_score_log, title='Total average scores over episodes', xlabel='Episodes', ylabel='Scores')
         plot_holistic_measure(eps_log, run_avg_score_log, title='Running average scores of window size %d over episodes' % agent.log_window_size, xlabel='Episodes', ylabel='Scores')
 elif params['mode'] == 'test':

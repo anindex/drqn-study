@@ -3,10 +3,13 @@ from __future__ import division
 from __future__ import print_function
 import logging
 import numpy as np
-import cv2
+from PIL import Image
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+
+IMAGE_WIDTH = 84
+IMAGE_HEIGHT = 84
 
 
 def loggerConfig(log_file, verbose=2):
@@ -25,33 +28,6 @@ def loggerConfig(log_file, verbose=2):
     return logger
 
 
-def to_grayscale(img):
-    return np.mean(img, axis=2, keepdims=True)
-
-
-def downsample(img):
-    return img[::2, ::2]
-
-
-def crop_atari(img):
-    return img[10:]
-
-
-def preprocessAtari(img):
-    img = downsample(crop_atari(img))
-    return img.reshape((-1, img.shape[0], img.shape[1]))
-
-
-def crop_scale(img):
-    img = img[34:34 + 160, :160]
-    img = cv2.resize(img, (80, 80))
-    img = cv2.resize(img, (42, 42))
-    img = img.mean(2)
-    img = img.astype(np.float32)
-    img *= (1. / 255.)
-    return img
-
-
 # NOTE: this only works with Gym scene format
 def rgb2gray(rgb):
     gray_image = 0.2126 * rgb[..., 0]
@@ -67,9 +43,15 @@ def rgb2y(rgb):
     return y_image
 
 
-def scale(image, hei_image, wid_image):
-    return cv2.resize(image, (wid_image, hei_image),
-                      interpolation=cv2.INTER_LINEAR)
+def downsample(img):
+    return np.array(Image.fromarray(img).resize((IMAGE_HEIGHT, IMAGE_WIDTH), Image.BILINEAR))
+
+
+def preprocessAtari(img, grayscale=True):
+    img = downsample(img)
+    if grayscale:
+        img = rgb2gray(img)
+    return img.reshape((-1, img.shape[0], img.shape[1]))
 
 
 def one_hot(n_classes, labels):
@@ -152,7 +134,7 @@ def plot_holistic_measure(x, y, title='', xlabel='', ylabel=''):
     y = np.array(y)
     y_mean, y_var = y.mean(axis=0), y.var(axis=0)
     plt.plot(x, y_mean)
-    plt.fill_between(x, y_mean - y_var, y_mean + y_var)
+    plt.fill_between(x, np.clip(y_mean - y_var, 0, float('inf')), y_mean + y_var)
     plt.title(title)
     plt.ylabel(xlabel)
     plt.xlabel(ylabel)

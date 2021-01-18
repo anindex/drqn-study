@@ -2,33 +2,54 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import random
-from collections import deque
+import numpy as np
 
-from src.replay.base import Memory, Experience, sample_batch_indexes
+from src.replay.sum_tree import SumTree
+from src.replay.base import Memory
 
 
 class RandomMemory(Memory):
-    def __init__(self, size):
-        super(RandomMemory, self).__init__(size)
-        self.memory = deque(maxlen=self.size)
+    def __init__(self, **kwargs):
+        super(RandomMemory, self).__init__(**kwargs)
+        self.memory = SumTree(self.size)
+        self.e = kwargs.get('e', 0.01)
+        self.a = kwargs.get('a', 0.6)  # a=0 means uniformly sampling, a=1 means fully prioritized sampling
+        self.b = kwargs.get('b', 0.4)  # b=0 means no correction, b=1 means fully corrected importance sampling
 
-    def sample(self, idx=None):
-        if idx is not None:
-            return self.memory[idx]
-        idx = random.randrange(len(self.memory))
-        return self.memory[idx]
+    def _get_priority(self, error):
+        return (error + self.e) ** self.a
 
-    def sample_batch(self, batch_size, batch_idxs=None):
-        if batch_idxs is None:
-            batch_idxs = sample_batch_indexes(0, len(self.memory) - 1, batch_size)
-        batch = [self.sample(idx=idx) for idx in batch_idxs]
-        return batch
+    def sample_batch(self, batch_size=1):
+        if self.memory.num_entries == 0:
+            raise ValueError('Random memory is empty, could not sample!')
+        batch = []
+        idxs = []
+        prios = []
+        segment = self.memory.total() / batch_size
+        for i in range(batch_size):
+            a = segment * i
+            b = segment * (i + 1)
+            s = random.uniform(a, b)
+            (idx, p, data) = self.memory.get(s)
+            batch.append(data)
+            idxs.append(idx)
+            prios.append(p)
+        # compute importance sampling weights
+        sampling_prob = np.array(prios) / self.memory.total()
+        weights = np.power(self.memory.num_entries * sampling_prob, -self.b)
+        weights /= weights.max()
+        return batch, idxs, weights
 
-    def append(self, s0, a, r, s1, t1):
-        self.memory.append(Experience(s0, a, r, s1, t1))
+    def add(self, experience, error=0.):
+        p = self._get_priority(error)
+        self.memory.add(p, experience)
+
+    def update(self, idx, error=0.):
+        p = self._get_priority(error)
+        self.memory.update(idx, p)
 
     def reset(self):
         self.memory.clear()
 
     def __len__(self):
-        return len(self.memory)
+        return self.memory.num_entries
