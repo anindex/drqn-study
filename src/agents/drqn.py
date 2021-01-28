@@ -45,11 +45,11 @@ class DRQNAgent(Agent):
 
     def _process_episode_batch(self, episodes):
         batch_size, eps_len = len(episodes), len(episodes[0])
-        s0_eps_batch = np.array([[episodes[i][j].s0 for j in range(eps_len)] for i in range(batch_size)])
-        a_eps_batch = np.array([[episodes[i][j].a for j in range(eps_len)] for i in range(batch_size)])
-        r_eps_batch = np.array([[episodes[i][j].r for j in range(eps_len)] for i in range(batch_size)])
-        s1_eps_batch = np.array([[episodes[i][j].s1 for j in range(eps_len)] for i in range(batch_size)])
-        t1_eps_batch = np.array([[float(not episodes[i][j].t1) for j in range(eps_len)] for i in range(batch_size)])
+        s0_eps_batch = np.asarray([[episodes[i][j].s0 for j in range(eps_len)] for i in range(batch_size)])
+        a_eps_batch = np.asarray([[episodes[i][j].a for j in range(eps_len)] for i in range(batch_size)])
+        r_eps_batch = np.asarray([[episodes[i][j].r for j in range(eps_len)] for i in range(batch_size)])
+        s1_eps_batch = np.asarray([[episodes[i][j].s1 for j in range(eps_len)] for i in range(batch_size)])
+        t1_eps_batch = np.asarray([[float(not episodes[i][j].t1) for j in range(eps_len)] for i in range(batch_size)])
         return s0_eps_batch, a_eps_batch, r_eps_batch, s1_eps_batch, t1_eps_batch
 
     def _get_loss(self, s0_batch, a_batch, r_batch, s1_batch, t1_batch, current_hidden, next_current_hidden, target_hidden, logging=True):
@@ -183,65 +183,64 @@ class DRQNAgent(Agent):
         self._reset_training_loggings()
         self.start_time = time.time()
         self.step = 0
-        nepisodes = 0
         total_reward = 0.
         self._random_initialization()
-        episode_steps, episode_reward = 0, 0
-        self.experience = self.env.reset()
-        self.episode = deque(maxlen=self.drqn_n_step)
-        hidden = self._create_zero_lstm_hidden()
         self.logger.info('<===================================> Training ...')
-        while self.step < self.steps:
-            action, hidden = self._forward(self.experience.s1, hidden)
-            self.experience = self.env.step(action)
-            self.episode.append(self.experience)
-            if self.memory_type == 'episodic':
-                self._store_experience(self.experience)
-            elif self.memory_type == 'random':
-                if len(self.episode) == self.drqn_n_step:
-                    current_hidden = self._create_zero_lstm_hidden()
-                    next_current_hidden = self._create_zero_lstm_hidden()
-                    target_hidden = self._create_zero_lstm_hidden()
-                    s0_eps_batch, a_eps_batch, r_eps_batch, s1_eps_batch, t1_eps_batch = self._process_episode_batch([self.episode])
-                    _, error, _, _, _ = self._get_loss(s0_eps_batch,
-                                                       a_eps_batch,
-                                                       r_eps_batch,
-                                                       s1_eps_batch,
-                                                       t1_eps_batch,
-                                                       current_hidden, next_current_hidden, target_hidden, logging=False)  # compute priority
-                    self._store_experience(list(self.episode), abs(error))  # make a copy of current nstep window
-            else:
-                raise ValueError('Memory type %s is not supported!' % self.memory_type)
-            self._visualize(visualize=self.train_visualize)
-            if self.step > self.learn_start:
-                self._backward()
-            episode_steps += 1
-            episode_reward += self.experience.r
-            self.step += 1
-            if self.experience.t1:
-                self.experience = self.env.reset()
-                self.episode.clear()
-                self.window_scores.append(episode_reward)
-                run_avg_reward = np.mean(self.window_scores)
-                total_reward += episode_reward
-                nepisodes += 1
-                total_avg_reward = total_reward / nepisodes if nepisodes > 0 else 0
-                if nepisodes % self.log_episode_interval == 0:
-                    if self.use_tensorboard:
-                        self.writer.add_scalar('run_avg_reward/eps', run_avg_reward, nepisodes)
-                    self.run_avg_score_log.append(run_avg_reward)
-                    self.total_avg_score_log.append(total_avg_reward)
-                    self.eps_log.append(nepisodes)
-                if run_avg_reward > self.env.solved_criteria:
-                    self._save_model(self.step, episode_reward)
-                    if self.solved_stop:
-                        break
-                hidden = self._create_zero_lstm_hidden()
-                episode_steps, episode_reward = 0, 0
-            if self.step % self.prog_freq == 0:
-                self.logger.info('Reporting at %d step | Elapsed Time: %s' % (self.step, str(time.time() - self.start_time)))
-                self.logger.info('Training Stats: lr: %f  epsilon: %f nepisodes: %d ' % (self.lr_adjusted, self.eps, nepisodes))
+        for self.episode in range(self.episodes):
+            self.experience = self.env.reset()
+            episode_steps, episode_reward = 0, 0
+            window = deque(maxlen=self.drqn_n_step)
+            hidden = self._create_zero_lstm_hidden()
+            while not self.env.episode_ended:
+                action, hidden = self._forward(self.experience.s1, hidden)
+                self.experience = self.env.step(action)
+                window.append(self.experience)
+                if self.memory_type == 'episodic':
+                    self._store_experience(self.experience)
+                elif self.memory_type == 'random':
+                    if len(window) == self.drqn_n_step:
+                        current_hidden = self._create_zero_lstm_hidden()
+                        next_current_hidden = self._create_zero_lstm_hidden()
+                        target_hidden = self._create_zero_lstm_hidden()
+                        s0_eps_batch, a_eps_batch, r_eps_batch, s1_eps_batch, t1_eps_batch = self._process_episode_batch([window])
+                        _, error, _, _, _ = self._get_loss(s0_eps_batch,
+                                                           a_eps_batch,
+                                                           r_eps_batch,
+                                                           s1_eps_batch,
+                                                           t1_eps_batch,
+                                                           current_hidden, next_current_hidden, target_hidden, logging=False)  # compute priority
+                        self._store_experience(list(window), abs(error))  # make a copy of current nstep window
+                else:
+                    raise ValueError('Memory type %s is not supported!' % self.memory_type)
+                self._visualize(visualize=self.train_visualize)
+                if self.step > self.learn_start:
+                    self._backward()
+                episode_steps += 1
+                episode_reward += self.experience.r
+                self.step += 1
+            self.window_scores.append(episode_reward)
+            run_avg_reward = np.mean(self.window_scores)
+            total_reward += episode_reward
+            total_avg_reward = total_reward / self.episode if self.episode > 0 else 0
+            if self.episode % self.log_episode_interval == 0:
+                if self.use_tensorboard:
+                    self.writer.add_scalar('run_avg_reward/episode', run_avg_reward, self.episode)
+                self.run_avg_score_log.append(run_avg_reward)
+                self.total_avg_score_log.append(total_avg_reward)
+                self.eps_log.append(self.episode)
+            if run_avg_reward > self.env.solved_criteria:
+                self._save_model(self.step, episode_reward)
+                if self.solved_stop:
+                    break
+            if self.episode % self.prog_freq == 0:
+                self.logger.info('Reporting at episode %d | Elapsed Time: %s' % (self.episode, str(time.time() - self.start_time)))
+                self.logger.info('Training Stats: lr: %f  epsilon: %f step: %d ' % (self.lr_adjusted, self.eps, self.step))
                 self.logger.info('Training Stats: total_reward: %f  total_avg_reward: %f run_avg_reward: %f ' % (total_reward, total_avg_reward, run_avg_reward))
+            if self.step > self.steps:
+                self.logger.info('Maximal steps reached. Training stop!')
+                break
+        self.logger.info('Saving model...')
+        self._save_model(self.step, episode_reward)
 
     def test_model(self):
         if not self.model:

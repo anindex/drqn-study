@@ -15,11 +15,11 @@ class DQNAgent(Agent):
 
     def _get_loss(self, experiences, logging=True):
         batch_size = len(experiences)
-        s0_batch = torch.from_numpy(np.array([experiences[i].s0 for i in range(batch_size)])).type(self.dtype).to(self.device)
-        a_batch = torch.from_numpy(np.array([experiences[i].a for i in range(batch_size)])).long().to(self.device)
-        r_batch = torch.from_numpy(np.array([experiences[i].r for i in range(batch_size)])).type(self.dtype).to(self.device)
-        s1_batch = torch.from_numpy(np.array([experiences[i].s1 for i in range(batch_size)])).type(self.dtype).to(self.device)
-        t1_batch = torch.from_numpy(np.array([float(not experiences[i].t1) for i in range(batch_size)])).type(self.dtype).to(self.device)
+        s0_batch = torch.from_numpy(np.asarray([experiences[i].s0 for i in range(batch_size)])).type(self.dtype).to(self.device)
+        a_batch = torch.from_numpy(np.asarray([experiences[i].a for i in range(batch_size)])).long().to(self.device)
+        r_batch = torch.from_numpy(np.asarray([experiences[i].r for i in range(batch_size)])).type(self.dtype).to(self.device)
+        s1_batch = torch.from_numpy(np.asarray([experiences[i].s1 for i in range(batch_size)])).type(self.dtype).to(self.device)
+        t1_batch = torch.from_numpy(np.asarray([float(not experiences[i].t1) for i in range(batch_size)])).type(self.dtype).to(self.device)
         # Compute target Q values for mini-batch update.
         if self.bootstrap_type == 'double_q':
             q_values = self.model(s1_batch).detach()    # Detach this variable from the current graph since we don't want gradients to propagate
@@ -100,45 +100,46 @@ class DQNAgent(Agent):
         self._reset_training_loggings()
         self.start_time = time.time()
         self.step = 0
-        nepisodes = 0
         total_reward = 0.
-        episode_steps, episode_reward = 0, 0
         self._random_initialization()
         self.logger.info('<===================================> Training ...')
-        self.experience = self.env.reset()
-        while self.step < self.steps:
-            action = self._forward(self.experience.s1)
-            self.experience = self.env.step(action)
-            _, error = self._get_loss([self.experience], logging=False)  # compute priority
-            self._store_experience(self.experience, abs(error))
-            self._visualize(visualize=self.train_visualize)
-            if self.step > self.learn_start:
-                self._backward()
-            episode_steps += 1
-            episode_reward += self.experience.r
-            self.step += 1
-            if self.experience.t1:
-                self.experience = self.env.reset()
-                self.window_scores.append(episode_reward)
-                run_avg_reward = np.mean(self.window_scores)
-                total_reward += episode_reward
-                nepisodes += 1
-                total_avg_reward = total_reward / nepisodes if nepisodes > 0 else 0
-                if nepisodes % self.log_episode_interval == 0:
-                    if self.use_tensorboard:
-                        self.writer.add_scalar('run_avg_reward/eps', run_avg_reward, nepisodes)
-                    self.run_avg_score_log.append(run_avg_reward)
-                    self.total_avg_score_log.append(total_avg_reward)
-                    self.eps_log.append(nepisodes)
-                if run_avg_reward > self.env.solved_criteria:
-                    self._save_model(self.step, episode_reward)
-                    if self.solved_stop:
-                        break
-                episode_steps, episode_reward = 0, 0
-            if self.step % self.prog_freq == 0:
-                self.logger.info('Reporting at %d step | Elapsed Time: %s' % (self.step, str(time.time() - self.start_time)))
-                self.logger.info('Training Stats: lr: %f  epsilon: %f nepisodes: %d ' % (self.lr_adjusted, self.eps, nepisodes))
+        for self.episode in range(self.episodes):
+            self.experience = self.env.reset()
+            episode_steps, episode_reward = 0, 0
+            while not self.env.episode_ended:
+                action = self._forward(self.experience.s1)
+                self.experience = self.env.step(action)
+                _, error = self._get_loss([self.experience], logging=False)  # compute priority
+                self._store_experience(self.experience, abs(error))
+                self._visualize(visualize=self.train_visualize)
+                if self.step > self.learn_start:
+                    self._backward()
+                episode_steps += 1
+                episode_reward += self.experience.r
+                self.step += 1
+            self.window_scores.append(episode_reward)
+            run_avg_reward = np.mean(self.window_scores)
+            total_reward += episode_reward
+            total_avg_reward = total_reward / self.episode if self.episode > 0 else 0
+            if self.episode % self.log_episode_interval == 0:
+                if self.use_tensorboard:
+                    self.writer.add_scalar('run_avg_reward/episode', run_avg_reward, self.episode)
+                self.run_avg_score_log.append(run_avg_reward)
+                self.total_avg_score_log.append(total_avg_reward)
+                self.eps_log.append(self.episode)
+            if run_avg_reward > self.env.solved_criteria:
+                self._save_model(self.step, episode_reward)
+                if self.solved_stop:
+                    break
+            if self.episode % self.prog_freq == 0:
+                self.logger.info('Reporting at episode %d | Elapsed Time: %s' % (self.episode, str(time.time() - self.start_time)))
+                self.logger.info('Training Stats: lr: %f  epsilon: %f steps: %d ' % (self.lr_adjusted, self.eps, self.step))
                 self.logger.info('Training Stats: total_reward: %f  total_avg_reward: %f run_avg_reward: %f ' % (total_reward, total_avg_reward, run_avg_reward))
+            if self.step > self.steps:
+                self.logger.info('Maximal steps reached. Training stop!')
+                break
+        self.logger.info('Saving model...')
+        self._save_model(self.step, episode_reward)
 
     def test_model(self):
         if not self.model:

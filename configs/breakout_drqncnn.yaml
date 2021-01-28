@@ -13,7 +13,7 @@ env:
 model:
   model_file: 'breakout_dqncnn.pt'
   kernel_num: 16
-  hidden_dim: 32
+  hidden_dim: 512
   enable_dueling: False
   dueling_type: 'avg'
   dtype: 'torch.float32'
@@ -28,26 +28,27 @@ model_type: 'drqn_cnn'
 memory_type: 'random'
 agent_type: 'drqn'
 mode: 'train'  # train|test
-value_criteria: 'mse_loss'
+value_criteria: 'smooth_l1_loss'
 optimizer: 'Adam'
 train_visualize: False
 retrain: True
 solved_stop: True
 
-random_eps: 5
+random_eps: 0
+episodes: 100000
+steps: 22000000  # max possible steps
 drqn_n_step: 3
-steps: 150000
-learn_start: 2000
+learn_start: 5000
 gamma: 0.99
-# clip_grad: 1.0
+clip_grad: 1.0
 lr: 0.001
 lr_decay: False
-eps_start: 0.9
-eps_decay: 100000
+eps_start: 1.0
+eps_decay: 200000
 eps_end: 0.05
 prog_freq: 1000
-target_model_update: 0.05
-batch_size: 16
+target_model_update: 1000
+batch_size: 32
 train_interval: 1
 log_window_size: 100
 test_nepisodes: 1

@@ -31,6 +31,7 @@ class Env(object):
         self.stack_len = kwargs.get('stack_len', 4)
         self.solved_criteria = kwargs.get('solved_criteria', 100)  # score
         self.q_threhold = kwargs.get('q_threhold', 100)  # threshold to justify whether soft-divergence has occured
+        self.episode_ended = False
         # POMDP setup
         self.pomdp = kwargs.get('pomdp', False)
         self.pomdp_type = kwargs.get('pomdp_type', 'flickering')

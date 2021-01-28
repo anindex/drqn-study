@@ -8,7 +8,7 @@ from collections import deque
 import torch
 from os.path import exists
 from torch.nn.functional import smooth_l1_loss, mse_loss  # noqa
-from torch.optim import Adam, Adagrad  # noqa
+from torch.optim import Adam, Adagrad, RMSprop  # noqa
 from tensorboardX import SummaryWriter
 
 
@@ -63,7 +63,8 @@ class Agent(object):
         self.value_criteria = eval(kwargs.get('value_criteria', 'mse_loss'))
         self.optimizer_class = eval(kwargs.get('optimizer', 'Adam'))
         # hyperparameters
-        self.steps = kwargs.get('steps', 100000)
+        self.episodes = kwargs.get('episodes', 100000)
+        self.steps = kwargs.get('steps', 22000000)
         self.random_eps = kwargs.get('random_eps', 50)
         self.learn_start = kwargs.get('learn_start', 1000)  # num steps to fill the memory
         self.gamma = kwargs.get('gamma', 0.99)
@@ -73,7 +74,7 @@ class Agent(object):
         self.weight_decay = kwargs.get('weight_decay', 0.)
         self.eps_start = kwargs.get('eps_start', 1.0)
         self.eps_decay = kwargs.get('eps_decay', 50000)  # num of decaying steps
-        self.eps_end = kwargs.get('eps_end', 0.1)
+        self.eps_end = kwargs.get('eps_end', 0.01)
         self.prog_freq = kwargs.get('prog_freq', 2500)
         self.train_interval = kwargs.get('train_interval', 1)
         self.memory_interval = kwargs.get('memory_interval', 1)
@@ -82,8 +83,9 @@ class Agent(object):
         self.target_model_update = kwargs.get('target_model_update', 1000)  # update every # steps
         self.batch_size = kwargs.get('batch_size', 32)
         self.bootstrap_type = kwargs.get('bootstrap_type', 'double_q')
-        # count step
+        # count step & episode
         self.step = 0
+        self.episode = 0
 
     def _load_model(self):
         if self.model_file is not None and exists(self.model_file):
@@ -171,7 +173,7 @@ class Agent(object):
             target_param.data.copy_(self.target_model_update * local_param.data + (1.0 - self.target_model_update) * target_param.data)
 
     def _epsilon_greedy(self, q_values):
-        self.eps = self.eps_end + max(0, (self.eps_start - self.eps_end) * (self.eps_decay - max(0, self.step - self.learn_start)) / self.eps_decay)
+        self.eps = self.eps_end + max(0, (self.eps_start - self.eps_end) * (self.eps_decay - self.episode) / self.eps_decay)
         # choose action
         if np.random.uniform() < self.eps:  # then we choose a random action
             action = random.randrange(self.action_dim)

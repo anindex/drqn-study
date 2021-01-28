@@ -47,10 +47,16 @@ def downsample(img):
     return np.array(Image.fromarray(img).resize((IMAGE_HEIGHT, IMAGE_WIDTH), Image.BILINEAR))
 
 
-def preprocessAtari(img, grayscale=True):
-    img = downsample(img)
+def crop(img):
+    return img[50:]  # remove atari img score
+
+
+def preprocessAtari(img, grayscale=True, crop_img=True):
     if grayscale:
         img = rgb2gray(img)
+    if crop_img:
+        img = crop(img)
+    img = downsample(img)
     return img.reshape((-1, img.shape[0], img.shape[1]))
 
 
@@ -136,8 +142,8 @@ def plot_holistic_measure(x, y, title='', xlabel='', ylabel=''):
     plt.plot(x, y_mean)
     plt.fill_between(x, np.clip(y_mean - y_var, 0, float('inf')), y_mean + y_var)
     plt.title(title)
-    plt.ylabel(xlabel)
-    plt.xlabel(ylabel)
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
     plt.show()
 
 

@@ -24,9 +24,13 @@ class AtariEnv(Env):  # low dimensional observations
         self.reset()
         self.logger.info("Action Space: %s", self.actions)
         self.logger.info("State Space: %s", self.state_shape)
+        self.last_lives = 0
 
         # atari POMDP
-        self.pomdp_mask = np.random.uniform(size=(1, *self.state_shape[1:])) < self.pomdp_prob
+        self.pomdp_mask = np.ones((1, *self.state_shape[1:]))
+        hide_pixels = int(self.state_shape[1] * (1 - self.pomdp_prob))
+        low, high = int((self.state_shape[1] - hide_pixels) / 2), int((self.state_shape[1] + hide_pixels) / 2)
+        self.pomdp_mask[:, low:high, :] = 0
 
     def render(self):
         if self.mode == 2:
@@ -47,11 +51,20 @@ class AtariEnv(Env):  # low dimensional observations
     def reset(self):
         self._reset_experience()
         self.seq_state1.append(preprocessAtari(self.env.reset()))
+        self.last_lives = 0
+        self.episode_ended = False
         return self._get_experience()
 
     def step(self, action):
         self.exp_action = self.actions[action]
-        self.exp_state1, self.exp_reward, self.exp_terminal1, _ = self.env.step(self.exp_action)
+        self.exp_state1, self.exp_reward, terminal, info = self.env.step(self.exp_action)
+        # augmenting telling lost life is bad
+        self.episode_ended = terminal
+        if info['ale.lives'] < self.last_lives:
+            self.exp_terminal1 = True
+        else:
+            self.exp_terminal1 = terminal
+        self.last_lives = info['ale.lives']
         self.exp_state1 = preprocessAtari(self.exp_state1)
         if self.pomdp:
             if self.pomdp_type == 'flickering':

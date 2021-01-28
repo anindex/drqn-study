@@ -47,11 +47,13 @@ class GymEnv(Env):  # low dimensional observations
     def reset(self):
         self._reset_experience()
         self.seq_state1.append(self.env.reset())
+        self.episode_ended = False
         return self._get_experience()
 
     def step(self, action):
         self.exp_action = action if self.enable_continuous else self.actions[action]
         self.exp_state1, self.exp_reward, self.exp_terminal1, _ = self.env.step(self.exp_action)
+        self.episode_ended = self.exp_terminal1
         if self.pomdp:
             if self.pomdp_type == 'flickering':
                 if np.random.rand() > self.pomdp_prob:

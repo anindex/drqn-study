@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 
 
 class SumTree:
@@ -7,8 +7,8 @@ class SumTree:
         self.clear()
 
     def clear(self):
-        self.tree = numpy.zeros(2 * self.size - 1)
-        self.data = numpy.zeros(self.size, dtype=object)
+        self.tree = np.zeros(2 * self.size - 1)
+        self.data = np.zeros(self.size, dtype=object)
         self.write = 0
         self.num_entries = 0
 
@@ -50,3 +50,18 @@ class SumTree:
         idx = self._retrieve(0, s)
         dataIdx = idx - self.size + 1
         return idx, self.tree[idx], self.data[dataIdx]
+
+
+if __name__ == '__main__':
+    tree = SumTree(10)
+    for i in range(1, 11):
+        tree.add(i, i)
+    print('Total: ', tree.total())
+    batch_size = 4
+    segment = tree.total() / batch_size
+    for i in range(batch_size):
+        a = segment * i
+        b = segment * (i + 1)
+        s = np.random.uniform(a, b)
+        (idx, p, data) = tree.get(s)
+        print('Id: %d, p: %f, data: %d' % (idx, p, data))
