@@ -1,3 +1,5 @@
 gym
+gym[atari]
 pyyaml
 matplotlib
+tensorboardX
