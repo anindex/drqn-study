@@ -12,8 +12,8 @@ env:
 
 model:
   model_file: 'breakout_dqncnn.pt'
-  kernel_num: 16
-  hidden_dim: 256
+  kernel_num: 32
+  hidden_dim: 512
   enable_dueling: False
   dueling_type: 'avg'
   dtype: 'torch.float32'
@@ -35,23 +35,23 @@ retrain: True
 solved_stop: True
 
 random_eps: 0
-episodes: 5000
-steps: 22000000  # max possible steps
-learn_start: 5000
+episodes: 20000
+steps: 15000000  # max possible steps
+learn_start: 10000
 gamma: 0.99
-clip_grad: 1.0
-lr: 0.0005
+clip_grad: 10.0
+lr: 0.0001
 lr_decay: False
 eps_start: 1.0
-eps_decay: 5000
-eps_end: 0.01
+eps_decay: 15000
+eps_end: 0.05
 prog_freq: 100
-target_model_update: 2000
-batch_size: 16
-train_interval: 1
+target_model_update: 1000
+batch_size: 32
+train_interval: 4
 log_window_size: 100
 test_nepisodes: 1
 log_step_interval: 1000
-log_episode_interval: 10
+log_episode_interval: 50
 use_tensorboard: False
 bootstrap_type: 'double_q'  # learn_q|target_q|double_q
