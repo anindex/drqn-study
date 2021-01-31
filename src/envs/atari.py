@@ -72,7 +72,7 @@ class AtariEnv(Env):  # low dimensional observations
                     self.exp_state1 = np.zeros(self.exp_state1.shape)
             elif self.pomdp_type == 'delete_dim':
                 self.exp_state1 = np.array(self.exp_state1) * self.pomdp_mask
-        self.seq_state0.append(self.seq_state1[-1])
+        self.seq_state0.append(self.seq_state1[0])
         self.seq_state1.append(self.exp_state1)
         return self._get_experience()
 
