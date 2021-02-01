@@ -7,6 +7,7 @@ from PIL import Image
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from os.path import join
 
 IMAGE_WIDTH = 84
 IMAGE_HEIGHT = 84
@@ -98,7 +99,8 @@ def plot_grad_flow(named_parameters):
                 Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
 
 
-def plot_lstm_grad_over_steps(x, grad_mean_ih, grad_mean_hh, grad_max_ih, grad_max_hh):
+def plot_lstm_grad_over_steps(x, grad_mean_ih, grad_mean_hh, grad_max_ih, grad_max_hh, log_image_folder=None):
+    plt.figure()
     plt.subplot(2, 2, 1)
     plt.plot(x, grad_mean_ih)
     plt.title('Mean LSTM grad magnitude ih')
@@ -115,11 +117,15 @@ def plot_lstm_grad_over_steps(x, grad_mean_ih, grad_mean_hh, grad_max_ih, grad_m
     plt.plot(x, grad_max_hh)
     plt.title('Max LSTM grad magnitude hh')
     plt.xlabel('Steps')
-    plt.show()
+    if log_image_folder is not None:
+        plt.savefig(join(log_image_folder, 'lstm_grad_over_steps'))
+    else:
+        plt.show()
 
 
-def plot_max_abs_q(x, max_abs_q_log):
+def plot_max_abs_q(x, max_abs_q_log, log_image_folder=None):
     # max abs q
+    plt.figure()
     plt.grid(True)
     max_abs_q_log = np.array(max_abs_q_log)
     max_abs_q_log = max_abs_q_log.max(axis=0).squeeze()
@@ -127,24 +133,34 @@ def plot_max_abs_q(x, max_abs_q_log):
     plt.ylabel('Max abs(Q)')
     plt.xlabel('Steps')
     plt.plot(x, max_abs_q_log)
-    plt.show()
+    if log_image_folder is not None:
+        plt.savefig(join(log_image_folder, 'max_abs_q_over_steps'))
+    else:
+        plt.show()
+    plt.figure()
     plt.title('Histogram of log scale max abs(Q)')
     plt.ylabel('Counts')
     plt.xlabel('max abs(Q)')
     plt.hist(max_abs_q_log)
-    plt.show()
+    if log_image_folder is not None:
+        plt.savefig(join(log_image_folder, 'max_abs_q_histogram'))
+    else:
+        plt.show()
 
 
-def plot_holistic_measure(x, y, title='', xlabel='', ylabel=''):
-    # tderr
+def plot_holistic_measure(x, y, title='', xlabel='', ylabel='', log_image_folder=None):
+    plt.figure()
     y = np.array(y)
     y_mean, y_var = y.mean(axis=0), y.var(axis=0)
     plt.plot(x, y_mean)
-    plt.fill_between(x, np.clip(y_mean - y_var, 0, float('inf')), y_mean + y_var)
+    plt.fill_between(x, y_mean - y_var, y_mean + y_var)
     plt.title(title)
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
-    plt.show()
+    if log_image_folder is not None:
+        plt.savefig(join(log_image_folder, title))
+    else:
+        plt.show()
 
 
 def save_data(d, path):

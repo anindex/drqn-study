@@ -60,7 +60,7 @@ class GymEnv(Env):  # low dimensional observations
                     self.exp_state1 = np.zeros(self.state_shape)
             elif self.pomdp_type == 'delete_dim' and self.pomdp_mask.size != 0:
                 self.exp_state1 = self.pomdp_mask * np.array(self.exp_state1)
-        self.seq_state0.append(self.seq_state1[-1])
+        self.seq_state0.append(self.seq_state1[0])
         self.seq_state1.append(self.exp_state1)
         return self._get_experience()
 

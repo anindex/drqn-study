@@ -8,8 +8,6 @@ from collections import deque
 import matplotlib.pyplot as plt
 from gym.spaces.box import Box
 
-from src.replay.base import Experience
-
 
 class Env(object):
     def __init__(self, **kwargs):
@@ -56,11 +54,7 @@ class Env(object):
         return states
 
     def _get_experience(self):
-        return Experience(s0=self._preprocessStates(self.seq_state0),
-                          a=self.exp_action,
-                          r=self.exp_reward,
-                          s1=self._preprocessStates(self.seq_state1),
-                          t1=self.exp_terminal1)
+        return (self._preprocessStates(self.seq_state0), self.exp_action, self.exp_reward, self._preprocessStates(self.seq_state1), float(not self.exp_terminal1))
 
     def render(self):  # render using the original gl window
         raise NotImplementedError()

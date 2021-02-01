@@ -19,7 +19,7 @@ class EpisodicMemory(Memory):
     def add(self, experience):
         self.memory[self.idx].append(experience)
         # Terminal states are saved with actions as None, so switch to next episode
-        if experience.t1:
+        if experience[4]:
             self.memory.append([])
             self.idx = min(self.idx + 1, self.num_episodes - 1)
 

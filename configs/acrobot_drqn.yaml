@@ -1,6 +1,6 @@
 env:
   game: 'Acrobot-v1'
-  stack_len: 2
+  stack_len: 1
   seed: 1314121
   solved_criteria: -92
   q_threhold: 0
@@ -18,7 +18,7 @@ model:
   dtype: 'torch.float32'
 
 memory:
-  size: 100000
+  size: 20000
   a: 0.6
   b: 0.4
 
@@ -27,28 +27,28 @@ model_type: 'drqn_fc'
 memory_type: 'random'
 agent_type: 'drqn'
 mode: 'train'  # train|test
-value_criteria: 'smooth_l1_loss'
+value_criteria: 'mse_loss'
 optimizer: 'Adam'
 train_visualize: False
 retrain: True
 solved_stop: True
 
 random_eps: 0
-episodes: 5000
 drqn_n_step: 2
+episodes: 500
 steps: 22000000  # max possible steps
-learn_start: 5000
+learn_start: 1000
 gamma: 0.99
-clip_grad: 1.0
+# clip_grad: 1.0
 lr: 0.001
 lr_decay: False
 eps_start: 1.0
-eps_decay: 4000
-eps_end: 0.1
-prog_freq: 100
+eps_decay: 500
+eps_end: 0.05
+prog_freq: 50
 target_model_update: 500
-batch_size: 32
-train_interval: 4
+batch_size: 16
+train_interval: 1
 log_window_size: 100
 test_nepisodes: 1
 log_step_interval: 1000

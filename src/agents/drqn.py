@@ -45,11 +45,11 @@ class DRQNAgent(Agent):
 
     def _process_episode_batch(self, episodes):
         batch_size, eps_len = len(episodes), len(episodes[0])
-        s0_eps_batch = np.asarray([[episodes[i][j].s0 for j in range(eps_len)] for i in range(batch_size)])
-        a_eps_batch = np.asarray([[episodes[i][j].a for j in range(eps_len)] for i in range(batch_size)])
-        r_eps_batch = np.asarray([[episodes[i][j].r for j in range(eps_len)] for i in range(batch_size)])
-        s1_eps_batch = np.asarray([[episodes[i][j].s1 for j in range(eps_len)] for i in range(batch_size)])
-        t1_eps_batch = np.asarray([[float(not episodes[i][j].t1) for j in range(eps_len)] for i in range(batch_size)])
+        s0_eps_batch = np.asarray([[episodes[i][j][0] for j in range(eps_len)] for i in range(batch_size)])
+        a_eps_batch = np.asarray([[episodes[i][j][1] for j in range(eps_len)] for i in range(batch_size)])
+        r_eps_batch = np.asarray([[episodes[i][j][2] for j in range(eps_len)] for i in range(batch_size)])
+        s1_eps_batch = np.asarray([[episodes[i][j][3] for j in range(eps_len)] for i in range(batch_size)])
+        t1_eps_batch = np.asarray([[episodes[i][j][4] for j in range(eps_len)] for i in range(batch_size)])
         return s0_eps_batch, a_eps_batch, r_eps_batch, s1_eps_batch, t1_eps_batch
 
     def _get_loss(self, s0_batch, a_batch, r_batch, s1_batch, t1_batch, current_hidden, next_current_hidden, target_hidden, logging=True):
@@ -160,7 +160,7 @@ class DRQNAgent(Agent):
         for e in range(self.random_eps):
             self.experience = self.env.reset()
             episode = []
-            while not self.experience.t1:
+            while not self.env.episode_ended:
                 action = self.env.sample_random_action()
                 self.experience = self.env.step(action)
                 episode.append(self.experience)
@@ -192,7 +192,7 @@ class DRQNAgent(Agent):
             window = deque(maxlen=self.drqn_n_step)
             hidden = self._create_zero_lstm_hidden()
             while not self.env.episode_ended:
-                action, hidden = self._forward(self.experience.s1, hidden)
+                action, hidden = self._forward(self.experience[3], hidden)
                 self.experience = self.env.step(action)
                 window.append(self.experience)
                 if self.memory_type == 'episodic':
@@ -216,7 +216,7 @@ class DRQNAgent(Agent):
                 if self.step > self.learn_start:
                     self._backward()
                 episode_steps += 1
-                episode_reward += self.experience.r
+                episode_reward += self.experience[2]
                 self.step += 1
             self.window_scores.append(episode_reward)
             run_avg_reward = np.mean(self.window_scores)
@@ -250,11 +250,11 @@ class DRQNAgent(Agent):
             episode_steps = 0
             hidden = self._create_zero_lstm_hidden()
             self.experience = self.env.reset()
-            while not self.experience.t1:
-                action, hidden = self._forward(self.experience.s1, hidden)
+            while not self.env.episode_ended:
+                action, hidden = self._forward(self.experience[3], hidden)
                 self.experience = self.env.step(action)
                 self._visualize(visualize=True)
                 episode_steps += 1
-                episode_reward += self.experience.r
+                episode_reward += self.experience[2]
                 if episode_reward > self.env.solved_criteria:
                     self.logger.info('Test episode %d at %d step with reward %f ' % (episode, episode_steps, episode_reward))

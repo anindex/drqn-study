@@ -2,6 +2,7 @@ import yaml
 import argparse
 import logging
 from datetime import datetime
+from os import mkdir
 from os.path import join, dirname, abspath
 
 from src.utils.factory import EnvDict, ModelDict, MemoryDict, AgentDict
@@ -56,10 +57,14 @@ if params['mode'] == 'train':
                 step_log = agent.step_log
                 eps_log = agent.eps_log
     # prune out data
-    min_len = min(len(total_avg_score_log[i]) for i in range(args.run))
-    total_avg_score_log = [log[:min_len] for log in total_avg_score_log]
-    run_avg_score_log = [log[:min_len] for log in run_avg_score_log]
-    eps_log = eps_log[:min_len]
+    min_eps_len = min(len(total_avg_score_log[i]) for i in range(args.run))
+    total_avg_score_log = [log[:min_eps_len] for log in total_avg_score_log]
+    run_avg_score_log = [log[:min_eps_len] for log in run_avg_score_log]
+    eps_log = eps_log[:min_eps_len]
+    min_step_len = min(len(max_abs_q_log[i]) for i in range(args.run))
+    max_abs_q_log = [log[:min_step_len] for log in max_abs_q_log]
+    loss_log = [log[:min_step_len] for log in loss_log]
+    step_log = step_log[:min_step_len]
     data = {
         'step_log': step_log,
         'eps_log': eps_log,
@@ -71,11 +76,13 @@ if params['mode'] == 'train':
     save_data(data, join(ROOT_DIR, 'logs', 'data', log_folder_name))
     if args.plot:
         # start plotting
+        log_image_folder = join(ROOT_DIR, 'logs', 'images', log_folder_name)
+        mkdir(log_image_folder)
         if 'log_lstm_grad' in params and params['log_lstm_grad']:
-            plot_lstm_grad_over_steps(step_log, agent.grad_mean_ih, agent.grad_mean_hh, agent.grad_max_ih, agent.grad_max_hh)
-        plot_max_abs_q(step_log, max_abs_q_log)
-        plot_holistic_measure(step_log, loss_log, title='Loss over steps', xlabel='Steps', ylabel='Loss')
-        plot_holistic_measure(eps_log, total_avg_score_log, title='Total average scores over episodes', xlabel='Episodes', ylabel='Scores')
-        plot_holistic_measure(eps_log, run_avg_score_log, title='Running average scores of window size %d over episodes' % agent.log_window_size, xlabel='Episodes', ylabel='Scores')
+            plot_lstm_grad_over_steps(step_log, agent.grad_mean_ih, agent.grad_mean_hh, agent.grad_max_ih, agent.grad_max_hh, log_image_folder)
+        plot_max_abs_q(step_log, max_abs_q_log, log_image_folder)
+        plot_holistic_measure(step_log, loss_log, title='loss_over_steps', xlabel='Steps', ylabel='Loss', log_image_folder=log_image_folder)
+        plot_holistic_measure(eps_log, total_avg_score_log, title='total_avg_score', xlabel='Episodes', ylabel='Scores', log_image_folder=log_image_folder)
+        plot_holistic_measure(eps_log, run_avg_score_log, title='running_avg_score_windowsize%d' % agent.log_window_size, xlabel='Episodes', ylabel='Scores', log_image_folder=log_image_folder)
 elif params['mode'] == 'test':
     agent.test_model()

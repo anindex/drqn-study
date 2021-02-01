@@ -1,6 +1,6 @@
 env:
   game: 'Acrobot-v1'
-  stack_len: 2
+  stack_len: 1
   seed: 1314121
   solved_criteria: -92
   q_threhold: 0
@@ -23,9 +23,9 @@ memory:
   b: 0.4
 
 env_type: 'gym'
-model_type: 'dqn_fc'
-memory_type: 'random'
-agent_type: 'dqn'
+model_type: 'drqn_fc'
+memory_type: 'episodic'
+agent_type: 'drqn'
 mode: 'train'  # train|test
 value_criteria: 'mse_loss'
 optimizer: 'Adam'
@@ -34,6 +34,7 @@ retrain: True
 solved_stop: True
 
 random_eps: 0
+drqn_n_step: 2
 episodes: 500
 steps: 22000000  # max possible steps
 learn_start: 1000
@@ -44,7 +45,7 @@ lr_decay: False
 eps_start: 1.0
 eps_decay: 500
 eps_end: 0.05
-prog_freq: 50
+prog_freq: 1
 target_model_update: 500
 batch_size: 16
 train_interval: 1

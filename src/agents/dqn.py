@@ -15,11 +15,11 @@ class DQNAgent(Agent):
 
     def _get_loss(self, experiences, logging=True):
         batch_size = len(experiences)
-        s0_batch = torch.from_numpy(np.asarray([experiences[i].s0 for i in range(batch_size)])).type(self.dtype).to(self.device)
-        a_batch = torch.from_numpy(np.asarray([experiences[i].a for i in range(batch_size)])).long().to(self.device)
-        r_batch = torch.from_numpy(np.asarray([experiences[i].r for i in range(batch_size)])).type(self.dtype).to(self.device)
-        s1_batch = torch.from_numpy(np.asarray([experiences[i].s1 for i in range(batch_size)])).type(self.dtype).to(self.device)
-        t1_batch = torch.from_numpy(np.asarray([float(not experiences[i].t1) for i in range(batch_size)])).type(self.dtype).to(self.device)
+        s0_batch = torch.from_numpy(np.asarray([experiences[i][0] for i in range(batch_size)])).type(self.dtype).to(self.device)
+        a_batch = torch.from_numpy(np.asarray([experiences[i][1] for i in range(batch_size)])).long().to(self.device)
+        r_batch = torch.from_numpy(np.asarray([experiences[i][2] for i in range(batch_size)])).type(self.dtype).to(self.device)
+        s1_batch = torch.from_numpy(np.asarray([experiences[i][3] for i in range(batch_size)])).type(self.dtype).to(self.device)
+        t1_batch = torch.from_numpy(np.asarray([experiences[i][4] for i in range(batch_size)])).type(self.dtype).to(self.device)
         # Compute target Q values for mini-batch update.
         if self.bootstrap_type == 'double_q':
             q_values = self.model(s1_batch).detach()    # Detach this variable from the current graph since we don't want gradients to propagate
@@ -86,7 +86,7 @@ class DQNAgent(Agent):
         self.logger.info('<===================================> Random policy initialization for %d eps' % self.random_eps)
         for e in range(self.random_eps):
             self.experience = self.env.reset()
-            while not self.experience.t1:
+            while not self.env.episode_ended:
                 action = self.env.sample_random_action()
                 self.experience = self.env.step(action)
                 error = self._backward([self.experience])
@@ -107,7 +107,7 @@ class DQNAgent(Agent):
             self.experience = self.env.reset()
             episode_steps, episode_reward = 0, 0
             while not self.env.episode_ended:
-                action = self._forward(self.experience.s1)
+                action = self._forward(self.experience[3])
                 self.experience = self.env.step(action)
                 _, error = self._get_loss([self.experience], logging=False)  # compute priority
                 self._store_experience(self.experience, abs(error))
@@ -115,7 +115,7 @@ class DQNAgent(Agent):
                 if self.step > self.learn_start:
                     self._backward()
                 episode_steps += 1
-                episode_reward += self.experience.r
+                episode_reward += self.experience[2]
                 self.step += 1
             self.window_scores.append(episode_reward)
             run_avg_reward = np.mean(self.window_scores)
@@ -148,11 +148,11 @@ class DQNAgent(Agent):
             episode_reward = 0
             episode_steps = 0
             self.experience = self.env.reset()
-            while not self.experience.t1:
-                action = self._forward(self.experience.s1)
+            while not self.env.episode_ended:
+                action = self._forward(self.experience[3])
                 self.experience = self.env.step(action)
                 self._visualize(visualize=True)
                 episode_steps += 1
-                episode_reward += self.experience.r
+                episode_reward += self.experience[2]
                 if episode_reward > self.env.solved_criteria:
                     self.logger.info('Test episode %d at %d step with reward %f ' % (episode, episode_steps, episode_reward))
