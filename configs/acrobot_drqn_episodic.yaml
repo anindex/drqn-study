@@ -3,7 +3,7 @@ env:
   stack_len: 1
   seed: 1314121
   solved_criteria: -92
-  q_threhold: 0
+  q_threhold: 100
   pomdp: True
   pomdp_type: 'delete_dim'  # flickering|delete_dim
   pomdp_mask: [1, 1, 1, 1, 0, 0]  # this mask is chosen depended on the hiding dimensions and the observation shape of the env (i.e. 0)
@@ -19,8 +19,8 @@ model:
 
 memory:
   size: 20000
-  a: 0.6
-  b: 0.4
+  a: 0.
+  b: 0.
 
 env_type: 'gym'
 model_type: 'drqn_fc'
@@ -34,19 +34,19 @@ retrain: True
 solved_stop: True
 
 random_eps: 0
-drqn_n_step: 2
-episodes: 500
+drqn_n_step: 5
+episodes: 2000
 steps: 22000000  # max possible steps
-learn_start: 1000
+learn_start: 10000
 gamma: 0.99
 # clip_grad: 1.0
 lr: 0.001
 lr_decay: False
 eps_start: 1.0
-eps_decay: 500
+eps_decay: 2000
 eps_end: 0.05
 prog_freq: 1
-target_model_update: 500
+target_model_update: 1000
 batch_size: 16
 train_interval: 1
 log_window_size: 100
@@ -54,4 +54,5 @@ test_nepisodes: 1
 log_step_interval: 1000
 log_episode_interval: 10
 use_tensorboard: False
-bootstrap_type: 'double_q'  # learn_q|target_q|double_q
+log_lstm_grad: True
+bootstrap_type: 'target_q'  # learn_q|target_q|double_q

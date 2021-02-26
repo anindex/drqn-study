@@ -34,19 +34,19 @@ retrain: True
 solved_stop: True
 
 random_eps: 0
-drqn_n_step: 2
-episodes: 500
+drqn_n_step: 10
+episodes: 2000
 steps: 22000000  # max possible steps
-learn_start: 1000
+learn_start: 10000
 gamma: 0.99
 # clip_grad: 1.0
-lr: 0.001
+lr: 0.0005
 lr_decay: False
 eps_start: 1.0
-eps_decay: 500
+eps_decay: 2000
 eps_end: 0.05
 prog_freq: 50
-target_model_update: 500
+target_model_update: 1000
 batch_size: 16
 train_interval: 1
 log_window_size: 100
